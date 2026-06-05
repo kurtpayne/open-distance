@@ -1,16 +1,18 @@
 // Tiled Distance Matrix handler. Same wire format as v1; routing internals are tiled.
 
-import { geocode, GeocodeResult } from "../geocode";
+import { geocode, GeocodeResult } from "./geocode";
 import { snap, getTile } from "./tiles";
 import { oneToMany, NodeRef } from "./router";
 import { formatDistance, formatDuration, Units } from "../format";
 
 export interface Env {
   GRAPH: R2Bucket;
-  GEOCODE: D1Database;
   CACHE: KVNamespace;
   DATA_VERSION: string;
   API_KEY: string;
+  // Per-state D1 shards: GEOCODE_CA, GEOCODE_NY, ...
+  // Accessed dynamically by src/v2/geocode.ts via env[`GEOCODE_${state}`].
+  [k: string]: unknown;
 }
 
 interface Element {
