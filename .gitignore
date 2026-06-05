@@ -1,0 +1,17 @@
+.env
+.env.*
+/data/
+*.pbf
+*.bin
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+node_modules/
+.wrangler/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store

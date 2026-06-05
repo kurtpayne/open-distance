@@ -1,0 +1,16 @@
+{
+  "name": "hhapi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250603.0",
+    "typescript": "^5.5.4",
+    "wrangler": "^4.94.0"
+  }
+}
