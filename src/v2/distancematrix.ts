@@ -1,9 +1,14 @@
 // Tiled Distance Matrix handler. Same wire format as v1; routing internals are tiled.
 
 import { geocode, GeocodeResult } from "./geocode";
-import { snap, getTile } from "./tiles";
-import { oneToMany, NodeRef } from "./router";
+import { snapK, getTile, SnapResult } from "./tiles";
+import { oneToMany, NodeRef, DestGroup } from "./router";
 import { formatDistance, formatDuration, Units } from "../format";
+
+// Number of snap candidates to keep per endpoint. Lets the router fall back to
+// the next-nearest node when the first one is on an isolated graph fragment
+// (e.g. a private campus road).
+const SNAP_K = 5;
 
 export interface Env {
   GRAPH: R2Bucket;
@@ -35,7 +40,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 interface ResolvedEndpoint {
   geocode: GeocodeResult;
-  snap: { tx: number; ty: number; dense: number; distM: number } | null;
+  snaps: SnapResult[];   // up to SNAP_K nearest road nodes; empty if no snap
 }
 
 async function resolveAll(
@@ -44,9 +49,9 @@ async function resolveAll(
 ): Promise<ResolvedEndpoint[]> {
   return Promise.all(qs.map(async q => {
     const g = await geocode(q, env);
-    if (g.status !== "OK") return { geocode: g, snap: null };
-    const s = await snap(env.GRAPH, env.DATA_VERSION, g.lat, g.lon);
-    return { geocode: g, snap: s };
+    if (g.status !== "OK") return { geocode: g, snaps: [] };
+    const s = await snapK(env.GRAPH, env.DATA_VERSION, g.lat, g.lon, SNAP_K);
+    return { geocode: g, snaps: s };
   }));
 }
 
@@ -124,46 +129,71 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
 
   const rows: { elements: Element[] }[] = [];
 
-  // Pre-warm: snap may have already fetched origin tiles. Build a destination NodeRef list.
-  const destNodes: (NodeRef | null)[] = dR.map(r => r.snap ? { tx: r.snap.tx, ty: r.snap.ty, dense: r.snap.dense } : null);
-  const uniqueDestNodes: NodeRef[] = [];
-  const uniqueDestKeys = new Set<string>();
-  for (const n of destNodes) {
-    if (!n) continue;
-    const k = nodeIdStr(n);
-    if (uniqueDestKeys.has(k)) continue;
-    uniqueDestKeys.add(k);
-    uniqueDestNodes.push(n);
-  }
+  // Each destination becomes a group keyed by its index. Group candidates are
+  // the top-K snap results -- the router settles when it reaches any of them.
+  const destGroups: DestGroup[] = dR.map((r, j) => ({
+    id: `d${j}`,
+    candidates: r.snaps.map(s => ({ tx: s.tx, ty: s.ty, dense: s.dense })),
+  }));
+  // Leg-cache key uses just the top-1 candidate (the common case). If we have
+  // to use a later candidate, that result still gets cached so future requests
+  // for the same address skip the work.
+  const destTop1: (NodeRef | null)[] = dR.map(r => r.snaps[0] ? { tx: r.snaps[0].tx, ty: r.snaps[0].ty, dense: r.snaps[0].dense } : null);
 
   for (let i = 0; i < origins.length; i++) {
     const elements: Element[] = [];
-    const oSnap = oR[i].snap;
-    if (oR[i].geocode.status !== "OK" || !oSnap) {
+    const oSnaps = oR[i].snaps;
+    if (oR[i].geocode.status !== "OK" || oSnaps.length === 0) {
       for (let j = 0; j < destinations.length; j++) elements.push({ status: "NOT_FOUND" });
       rows.push({ elements });
       continue;
     }
-    const srcNode: NodeRef = { tx: oSnap.tx, ty: oSnap.ty, dense: oSnap.dense };
+    const srcNode: NodeRef = { tx: oSnaps[0].tx, ty: oSnaps[0].ty, dense: oSnaps[0].dense };
 
-    const cached = await loadLegCacheBatch(env, srcNode, uniqueDestNodes);
-    const missing = uniqueDestNodes.filter(n => !cached.has(nodeIdStr(n)));
+    // Leg cache for the top-1-to-top-1 path. Only loads cached legs for
+    // destinations where top-1 snap is non-null.
+    const cacheableDests = destTop1.filter((n): n is NodeRef => n !== null);
+    const cached = await loadLegCacheBatch(env, srcNode, cacheableDests);
+
+    // Build the set of dest groups that still need routing.
+    const needRouting: DestGroup[] = [];
+    for (let j = 0; j < destinations.length; j++) {
+      const t1 = destTop1[j];
+      if (!t1) continue;
+      if (cached.has(nodeIdStr(t1))) continue;
+      if (destGroups[j].candidates.length === 0) continue;
+      needRouting.push(destGroups[j]);
+    }
+
     let computed: Map<string, { timeS: number; lenM: number }> = new Map();
-    if (missing.length > 0) {
-      computed = await oneToMany(env.GRAPH, env.DATA_VERSION, srcNode, missing);
+    if (needRouting.length > 0) {
+      computed = await oneToMany(env.GRAPH, env.DATA_VERSION, srcNode, needRouting);
+      // Cache by top-1 for each routed destination (even if route used a later candidate).
+      const legsToCache = new Map<string, { timeS: number; lenM: number }>();
       const dstByKey = new Map<string, NodeRef>();
-      for (const n of missing) dstByKey.set(nodeIdStr(n), n);
-      await writeLegCacheBatch(env, srcNode, computed, dstByKey);
+      for (const g of needRouting) {
+        const leg = computed.get(g.id);
+        if (!leg) continue;
+        // Find which destination index this group belongs to.
+        const idx = parseInt(g.id.slice(1), 10);
+        const t1 = destTop1[idx];
+        if (!t1) continue;
+        const k = nodeIdStr(t1);
+        legsToCache.set(k, leg);
+        dstByKey.set(k, t1);
+      }
+      await writeLegCacheBatch(env, srcNode, legsToCache, dstByKey);
     }
 
     for (let j = 0; j < destinations.length; j++) {
-      const dn = destNodes[j];
-      if (!dn || dR[j].geocode.status !== "OK") {
+      const t1 = destTop1[j];
+      if (!t1 || dR[j].geocode.status !== "OK") {
         elements.push({ status: "NOT_FOUND" });
         continue;
       }
-      const k = nodeIdStr(dn);
-      const leg = cached.get(k) ?? computed.get(k);
+      const cachedLeg = cached.get(nodeIdStr(t1));
+      const computedLeg = computed.get(`d${j}`);
+      const leg = cachedLeg ?? computedLeg;
       if (!leg) { elements.push({ status: "ZERO_RESULTS" }); continue; }
       const meters = Math.round(leg.lenM);
       const seconds = Math.round(leg.timeS);

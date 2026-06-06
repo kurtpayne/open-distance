@@ -164,17 +164,22 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-export function snapInTile(tile: Tile, lat: number, lon: number): { dense: number; distM: number } | null {
-  if (tile.nLocal === 0) return null;
-  // Map lat/lon to sub-grid cell.
+// Min separation between snap candidates, in meters. Forces candidates to
+// land on different road segments so private-campus fragments don't dominate
+// all top-K slots.
+const SNAP_MIN_SEP_M = 200;
+
+export function snapInTile(tile: Tile, lat: number, lon: number, k: number = 1): { dense: number; distM: number }[] {
+  if (tile.nLocal === 0) return [];
   const tileLonMin = GRID_ORIGIN_LON + tile.tx * CELL_DEG;
   const tileLatMin = GRID_ORIGIN_LAT + tile.ty * CELL_DEG;
   const cell = CELL_DEG / tile.gridNLat;
   const cy0 = Math.max(0, Math.min(tile.gridNLat - 1, Math.floor((lat - tileLatMin) / cell)));
   const cx0 = Math.max(0, Math.min(tile.gridNLon - 1, Math.floor((lon - tileLonMin) / cell)));
-  let best = -1;
-  let bestD = Infinity;
-  for (let r = 0; r <= 8 && best < 0; r++) {
+  // Phase 1: gather many candidates from progressively wider rings.
+  const all: { dense: number; distM: number }[] = [];
+  const ringsToWiden = k > 1 ? 6 : 2;
+  for (let r = 0; r <= 8; r++) {
     const yMin = Math.max(0, cy0 - r);
     const yMax = Math.min(tile.gridNLat - 1, cy0 + r);
     const xMin = Math.max(0, cx0 - r);
@@ -188,37 +193,76 @@ export function snapInTile(tile: Tile, lat: number, lon: number): { dense: numbe
         for (let i = s; i < e; i++) {
           const n = tile.gridNodeIds[i];
           const d = haversineMeters(lat, lon, tile.localLat[n], tile.localLon[n]);
-          if (d < bestD) { bestD = d; best = n; }
+          all.push({ dense: n, distM: d });
         }
       }
     }
-    if (best >= 0 && r >= 1) break;
+    if (all.length > 0 && r >= ringsToWiden && all[0].distM < 200) break;
   }
-  return best >= 0 ? { dense: best, distM: bestD } : null;
+  all.sort((a, b) => a.distM - b.distM);
+  // Phase 2: pick top-K with min separation, so candidates come from different
+  // road segments (helps when the nearest cluster is on a disconnected fragment).
+  const chosen: { dense: number; distM: number }[] = [];
+  for (const cand of all) {
+    let tooClose = false;
+    for (const c of chosen) {
+      const dx = tile.localLat[cand.dense] - tile.localLat[c.dense];
+      const dy = tile.localLon[cand.dense] - tile.localLon[c.dense];
+      // Rough meters: 1deg lat ~ 111km; lon scaled by cos(lat).
+      const dm = Math.sqrt((dx * 111000) ** 2 + (dy * 111000 * Math.cos(lat * Math.PI / 180)) ** 2);
+      if (dm < SNAP_MIN_SEP_M) { tooClose = true; break; }
+    }
+    if (tooClose) continue;
+    chosen.push(cand);
+    if (chosen.length >= k) break;
+  }
+  // Always keep the absolute closest as the first candidate even if we ended
+  // up adding only spaced-out ones later.
+  if (chosen.length === 0 && all.length > 0) return [all[0]];
+  return chosen;
 }
 
-export async function snap(
+export interface SnapResult { tx: number; ty: number; dense: number; distM: number }
+
+export async function snapK(
   bucket: R2Bucket,
   version: string,
   lat: number,
   lon: number,
-): Promise<{ tx: number; ty: number; dense: number; distM: number } | null> {
-  // Try the home tile, then ring of neighbours up to radius 2.
+  k: number = 5,
+): Promise<SnapResult[]> {
+  // Search home tile + neighbour ring up to radius 2 and keep top-K nearest.
   const home = tileOf(lat, lon);
-  let best: { tx: number; ty: number; dense: number; distM: number } | null = null;
+  const found: SnapResult[] = [];
   for (let r = 0; r <= 2; r++) {
     for (let dx = -r; dx <= r; dx++) {
       for (let dy = -r; dy <= r; dy++) {
         if (r > 0 && Math.abs(dx) < r && Math.abs(dy) < r) continue;
         const tile = await getTile(bucket, version, home.tx + dx, home.ty + dy);
         if (!tile) continue;
-        const s = snapInTile(tile, lat, lon);
-        if (s && (best === null || s.distM < best.distM)) {
-          best = { tx: tile.tx, ty: tile.ty, dense: s.dense, distM: s.distM };
+        const matches = snapInTile(tile, lat, lon, k);
+        for (const m of matches) {
+          const r: SnapResult = { tx: tile.tx, ty: tile.ty, dense: m.dense, distM: m.distM };
+          // Insert sorted.
+          let pos = found.length;
+          while (pos > 0 && found[pos - 1].distM > r.distM) pos--;
+          found.splice(pos, 0, r);
+          if (found.length > k) found.length = k;
         }
       }
     }
-    if (best !== null && (best as { distM: number }).distM < 500) break;  // close enough
+    if (found.length >= k && found[0].distM < 200) break; // good enough; stop widening
   }
-  return best;
+  return found;
+}
+
+// Back-compat single-best wrapper.
+export async function snap(
+  bucket: R2Bucket,
+  version: string,
+  lat: number,
+  lon: number,
+): Promise<SnapResult | null> {
+  const all = await snapK(bucket, version, lat, lon, 1);
+  return all.length > 0 ? all[0] : null;
 }

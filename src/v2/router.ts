@@ -10,6 +10,7 @@ import { getTile, packTileId, Tile } from "./tiles";
 
 export interface NodeRef { tx: number; ty: number; dense: number }
 export interface LegResult { timeS: number; lenM: number }
+export interface DestGroup { id: string; candidates: NodeRef[] }
 
 interface TileScratch {
   tile: Tile;
@@ -74,22 +75,27 @@ export async function oneToMany(
   bucket: R2Bucket,
   version: string,
   src: NodeRef,
-  dsts: NodeRef[],
+  groups: DestGroup[],
   opts: { maxSettled?: number } = {},
 ): Promise<Map<string, LegResult>> {
   const out = new Map<string, LegResult>();
-  if (dsts.length === 0) return out;
+  if (groups.length === 0) return out;
 
-  // Target index: tilePacked -> Map<dense, id>
+  // Target index: tilePacked -> Map<dense, group_id>. Multiple candidates per
+  // group can share the same id -- the first one reached wins.
   const targets = new Map<number, Map<number, string>>();
+  const groupSatisfied = new Set<string>();
   let remaining = 0;
-  for (const d of dsts) {
-    const tp = packTileId(d.tx, d.ty);
-    let inner = targets.get(tp);
-    if (!inner) { inner = new Map(); targets.set(tp, inner); }
-    if (!inner.has(d.dense)) {
-      inner.set(d.dense, `${d.tx},${d.ty},${d.dense}`);
-      remaining++;
+  for (const g of groups) {
+    if (g.candidates.length === 0) continue;
+    remaining++;
+    for (const d of g.candidates) {
+      const tp = packTileId(d.tx, d.ty);
+      let inner = targets.get(tp);
+      if (!inner) { inner = new Map(); targets.set(tp, inner); }
+      if (!inner.has(d.dense)) {
+        inner.set(d.dense, g.id);
+      }
     }
   }
 
@@ -118,8 +124,12 @@ export async function oneToMany(
 
   const srcTargetMap = targets.get(srcPacked);
   if (srcTargetMap && srcTargetMap.has(src.dense)) {
-    out.set(srcTargetMap.get(src.dense)!, { timeS: 0, lenM: 0 });
-    remaining--;
+    const gid = srcTargetMap.get(src.dense)!;
+    if (!groupSatisfied.has(gid)) {
+      groupSatisfied.add(gid);
+      out.set(gid, { timeS: 0, lenM: 0 });
+      remaining--;
+    }
   }
   if (remaining === 0) return out;
 
@@ -155,7 +165,8 @@ export async function oneToMany(
     const tInner = targets.get(curTile);
     if (tInner) {
       const id = tInner.get(curDense);
-      if (id !== undefined && !out.has(id)) {
+      if (id !== undefined && !groupSatisfied.has(id)) {
+        groupSatisfied.add(id);
         out.set(id, { timeS: curDist, lenM: curLen });
         remaining--;
         if (remaining === 0) break;
