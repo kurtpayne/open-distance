@@ -6,7 +6,10 @@ Google's legacy Distance Matrix API.
 - Hostname: `https://hhapi.propspress.com`
 - Auth: `key=` query param (Google-style)
 - Coverage: continental US (lower 48 + DC)
-- Endpoint: `GET /maps/api/distancematrix/json`
+- Endpoints:
+  - `GET /maps/api/distancematrix/json` — the main API (Google-shape)
+  - `GET /healthz` — liveness + sentinel-tile probe
+  - `GET /coverage` — version, sources, supported `match` values, deviations
 
 ## Architecture (v2, tiled)
 
@@ -77,9 +80,13 @@ extra arrays surfacing geocode confidence:
 - Max 100 elements (origins × destinations) per request.
 - Addresses whose geocode tier is only `centroid` (ZIP/city centroid, often
   miles off) return `NOT_FOUND` instead of a confidently-wrong distance.
-- Long cross-country routes (e.g. SF↔LA, NYC↔Boston) may return
-  `ZERO_RESULTS` — plain Dijkstra hits a 2M-node settled cap. Commute-distance
-  routes (<200 mi) work. A* / L1 highway overlay is the next perf step.
+- Cross-region routes (SF↔LA, NYC↔Boston, Atlanta↔Miami) work via weighted A*
+  (k=1.5 heuristic over haversine / 30 m/s). True cross-country routes
+  (NYC↔LA-scale) may still hit the 2M-node settled cap → `ZERO_RESULTS`;
+  the L1 highway overlay (milepost spec Phase 2) is the future fix.
+- Successful Distance Matrix responses send
+  `Cache-Control: public, max-age=3600` — identical queries are absorbed by
+  Cloudflare's edge cache for the house-hunting consumer loop.
 
 ## Populating data from a clean clone
 
@@ -152,9 +159,12 @@ along the matching segment by house-number range. Returned as `interpolated`.
   Snap returns top-K nearest road nodes with ≥200 m separation so the next
   candidate can save the request when the first is on an isolated graph
   fragment (private campus roads like `1 Hacker Way`).
-- `src/v2/router.ts`: tiled one-to-many Dijkstra over destination *groups*
-  (any candidate of each destination satisfies that destination). Settles at
-  2M nodes max, returns `ZERO_RESULTS` if cap hit.
+- `src/v2/router.ts`: tiled one-to-many **weighted A\*** over destination
+  *groups* (any candidate of each destination satisfies that destination).
+  Heap key `f = g + 1.5 × (haversine_to_nearest_unsatisfied_dest / 30 m/s)`.
+  Slightly inadmissible — paths may be up to ~50% non-optimal in theory,
+  empirically within minutes-level accuracy for cross-region. Settles at 2M
+  nodes max → `ZERO_RESULTS` if cap hit.
 - `src/v2/distancematrix.ts`: top-level handler. Leg cache in KV under
   `leg2:` (src node → top-1 dest node → time+meters).
 - Geocode cache prefix `geo4:` in KV — bumped historically when normalizer
