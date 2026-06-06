@@ -18,9 +18,12 @@ export type GeocodeResult = GeocodeHit | GeocodeMiss;
 const COORD_RE = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/;
 
 export function normalizeQuery(q: string): string {
+  // Strip everything not alphanumeric or space, then collapse whitespace.
+  // Critically, drop commas: FTS5's default tokenizer splits on punctuation
+  // when indexing rows, so a query token "st," would never match stored "st".
   return q
     .toLowerCase()
-    .replace(/[^a-z0-9 ,]/g, " ")
+    .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -81,7 +84,8 @@ export async function geocode(
   const norm = normalizeQuery(q);
   if (!norm) return { status: "NOT_FOUND", normalized: q };
 
-  const cacheKey = `geo:${env.DATA_VERSION}:${await sha1Hex(norm)}`;
+  // v2 prefix: avoids stale NOT_FOUND cached during pre-fix normalizer rollout.
+  const cacheKey = `geo2:${env.DATA_VERSION}:${await sha1Hex(norm)}`;
   const hit = await env.CACHE.get(cacheKey, "json") as GeocodeResult | null;
   if (hit) return hit;
 

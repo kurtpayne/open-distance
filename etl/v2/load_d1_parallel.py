@@ -31,12 +31,14 @@ from etl.v2.config import DATA, addresses_csv
 from etl.v2.states import BY_CODE
 
 
-ROWS_PER_INSERT = 500
-CONCURRENCY = 16   # parallel HTTP requests per state
-STATE_PARALLELISM = 4  # number of states processed in parallel
+ROWS_PER_INSERT = 250          # smaller batches: trigger overhead per row
+CONCURRENCY = 6                # parallel HTTP per state -- keep under D1 burst limit
+STATE_PARALLELISM = 6          # states in flight in parallel
+RATE_LIMIT_BACKOFF_S = 5.0     # base backoff on 971 (rate-limit)
 
 
 SCHEMA_SQL = """
+DROP TRIGGER IF EXISTS addresses_ai;
 DROP TABLE IF EXISTS addr_fts;
 DROP TABLE IF EXISTS addresses;
 CREATE TABLE addresses (
@@ -47,9 +49,13 @@ CREATE TABLE addresses (
   tier TEXT NOT NULL
 );
 CREATE VIRTUAL TABLE addr_fts USING fts5(normalized, content='addresses', content_rowid='id');
+CREATE TRIGGER addresses_ai AFTER INSERT ON addresses BEGIN
+  INSERT INTO addr_fts(rowid, normalized) VALUES (new.id, new.normalized);
+END;
 """
 
-REBUILD_FTS_SQL = "INSERT INTO addr_fts(addr_fts) VALUES('rebuild');"
+# Not used (FTS now populated via trigger), kept for legacy callers.
+REBUILD_FTS_SQL = "SELECT 1;"
 
 
 def log(msg: str) -> None:
@@ -79,14 +85,24 @@ def esc(s: str) -> str:
     return "'" + s.replace("'", "''") + "'"
 
 
-async def d1_query(session: aiohttp.ClientSession, account_id: str, db_id: str, sql: str) -> dict:
+async def d1_query(session: aiohttp.ClientSession, account_id: str, db_id: str, sql: str, max_retries: int = 5) -> dict:
     url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{db_id}/query"
-    async with session.post(url, json={"sql": sql}) as r:
-        data = await r.json()
-        if not data.get("success"):
-            err = data.get("errors") or data.get("messages") or data
+    backoff = RATE_LIMIT_BACKOFF_S
+    for attempt in range(max_retries):
+        async with session.post(url, json={"sql": sql}) as r:
+            data = await r.json()
+            if data.get("success"):
+                return data
+            err = data.get("errors") or data.get("messages") or []
+            err_str = str(err)
+            # Retry on 971 (rate limit) and 7429 (CPU exceeded) with backoff.
+            if any(code in err_str for code in ("971", "7429", "rate")):
+                if attempt + 1 < max_retries:
+                    await asyncio.sleep(backoff)
+                    backoff *= 1.7
+                    continue
             raise RuntimeError(f"d1 error: {err}")
-        return data
+    raise RuntimeError("d1 query: exhausted retries")
 
 
 async def load_state(
@@ -153,15 +169,12 @@ async def load_state(
             last_report = time.time()
 
     if failed:
-        log(f"  {state}: {len(failed)} batches failed")
-
-    log(f"{state}: rebuild FTS")
-    await d1_query(session, account_id, db_id, REBUILD_FTS_SQL)
-
+        log(f"  {state}: {len(failed)} batches failed (will need a partial reload)")
     elapsed = time.time() - start
-    rate = total_rows / elapsed if elapsed > 0 else 0
-    log(f"{state}: done in {elapsed:.1f}s ({rate:.0f} rows/s)")
-    return total_rows - len(failed) * ROWS_PER_INSERT
+    inserted = total_rows - len(failed) * ROWS_PER_INSERT
+    rate = inserted / elapsed if elapsed > 0 else 0
+    log(f"{state}: done in {elapsed:.1f}s ({rate:.0f} rows/s, {inserted:,} inserted)")
+    return inserted
 
 
 async def main(argv: list[str]) -> int:
