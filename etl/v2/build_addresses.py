@@ -16,8 +16,14 @@ import csv
 import sys
 from pathlib import Path
 
-from etl.v2.config import addresses_csv, state_dir
+from etl.v2.config import DATA, state_dir
 from etl.v2.states import BY_CODE
+
+
+def osm_csv(version: str, state_code: str):
+    p = DATA / "out" / version / "addresses"
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"{state_code}.osm.csv"
 
 
 SUFFIX_ABBR = {
@@ -96,12 +102,15 @@ def build_state(state_code: str, version: str) -> int:
     h.apply_file(str(pbf))
     log(f"{state_code}:   collected {len(h.rows)} addresses")
 
-    out = addresses_csv(version, state_code)
+    out = osm_csv(version, state_code)
     with open(out, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["id", "normalized", "lat", "lon"])
+        w.writerow(["id", "normalized", "lat", "lon", "tier"])
         for i, (norm, lat, lon) in enumerate(h.rows, start=1):
-            w.writerow([i, norm, f"{lat:.7f}", f"{lon:.7f}"])
+            # OSM addr-tagged nodes -> 'interpolated' tier (good but not NAD-level
+            # rooftop certainty; many are also good rooftop, but we keep the conservative
+            # tier so NAD wins on collisions in the merge).
+            w.writerow([i, norm, f"{lat:.7f}", f"{lon:.7f}", "interpolated"])
     return len(h.rows)
 
 

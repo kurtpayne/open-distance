@@ -16,8 +16,14 @@ import sys
 import zipfile
 from pathlib import Path
 
-from etl.v2.config import addresses_csv
+from etl.v2.config import DATA, addresses_csv
 from etl.v2.states import BY_CODE
+
+
+def nad_csv(version: str, state_code: str):
+    p = DATA / "out" / version / "addresses"
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"{state_code}.nad.csv"
 
 
 # NAD r22 column names (per schema.ini).
@@ -174,7 +180,7 @@ def main(argv: list[str]) -> int:
                     continue
                 w = writers.get(state)
                 if w is None:
-                    out_path = addresses_csv(args.version, state)
+                    out_path = nad_csv(args.version, state)
                     fh = open(out_path, "w", encoding="utf-8", newline="")
                     w = csv.writer(fh)
                     w.writerow(["id", "normalized", "lat", "lon", "tier"])

@@ -79,10 +79,10 @@ ensure_venv() {
     log "creating venv"
     python3 -m venv "$VENV"
   fi
-  if ! "$VENV/bin/python3" -c "import osmium, numpy, requests" >/dev/null 2>&1; then
+  if ! "$VENV/bin/python3" -c "import osmium, numpy, requests, aiohttp" >/dev/null 2>&1; then
     log "installing python deps"
     "$VENV/bin/python3" -m pip install --upgrade pip --quiet >/dev/null
-    "$VENV/bin/python3" -m pip install --quiet osmium numpy requests
+    "$VENV/bin/python3" -m pip install --quiet osmium numpy requests aiohttp
   fi
   command -v osmium >/dev/null 2>&1 || die "osmium CLI missing (brew install osmium-tool)"
   command -v wrangler >/dev/null 2>&1 || die "wrangler missing (npm i -g wrangler)"
@@ -98,6 +98,8 @@ stage_fetch() {
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_sources $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
   log "fetch: NAD (national)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_nad 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  log "fetch: OpenAddresses (US, per-source)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_oa --states $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
 }
 
 stage_tiles() {
@@ -124,16 +126,25 @@ stage_addresses() {
     log "ERROR: NAD ZIP missing at $nad_zip. Run: refresh.sh fetch"
     return 1
   fi
-  log "addresses ($v): NAD slice into per-state CSVs ($states)"
+  log "addresses ($v): NAD national slice -> per-state .nad.csv ($states)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_nad_addresses \
     --version "$v" --zip "$nad_zip" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
+  log "addresses ($v): OA per-source -> per-state .oa.csv ($states)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_oa_addresses \
+    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
+  log "addresses ($v): OSM addr-tagged nodes -> per-state .osm.csv ($states)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_addresses \
+    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
+  log "addresses ($v): merge -> per-state .csv (NAD > OA > OSM)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.merge_addresses \
+    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
 }
 
 stage_upload_r2() {
   ensure_venv; load_env
   local v; v=$(read_version)
-  log "upload-r2 ($v)"
-  bash "$ROOT/etl/v2/upload_tiles.sh" "$v" 2>&1 | tee -a "$LOG_DIR/upload-r2.log"
+  log "upload-r2 ($v): parallel uploader"
+  bash "$ROOT/etl/v2/upload_tiles_parallel.sh" "$v" 16 2>&1 | tee -a "$LOG_DIR/upload-r2.log"
 }
 
 stage_load_d1() {
