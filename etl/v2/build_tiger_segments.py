@@ -1,30 +1,26 @@
 #!/usr/bin/env python3
-"""Build per-state TIGER street-segment CSVs for address interpolation.
+"""Build per-state TIGER street-segment CSVs from per-state edges-geodatabase.
 
-For each county we have <county>_edges.zip + <county>_addr.zip:
-  EDGES: TLID + geometry (LineString) + FULLNAME + MTFCC + ZIPL + ZIPR
-  ADDR:  TLID + FROMHN + TOHN + SIDE + ZIP
-
-We join EDGES and ADDR on TLID and emit, per matched pair, one segment row.
+Input:  data/v2/tiger-gdb/<STATE>_edges.gdb.zip
+        Single layer `All_Lines` with TLID + FULLNAME + LFROMADD/LTOADD +
+        RFROMADD/RTOADD + ZIPL/ZIPR + MTFCC + geometry.
 
 Output: data/v2/out/<version>/segments/<STATE>.csv
-  columns: id, street_normalized, zip, from_hn, to_hn, side,
-           from_lat, from_lon, to_lat, to_lon
+        columns: id, street_normalized, zip, from_hn, to_hn, side,
+                 from_lat, from_lon, to_lat, to_lon
 
-street_normalized uses the same abbreviator as the addresses pipeline so the
-Worker can match queries directly.
+Each row in All_Lines can produce up to 2 segment records (one per side)
+depending on which side has a populated address range.
 """
 from __future__ import annotations
 
 import argparse
 import csv
-import io
 import re
 import sys
-import zipfile
 from pathlib import Path
 
-import shapefile
+import fiona
 
 from etl.v2.config import DATA
 from etl.v2.states import BY_CODE
@@ -47,7 +43,6 @@ DIR_ABBR = {
     "NE": "ne", "NW": "nw", "SE": "se", "SW": "sw",
 }
 
-# MTFCC codes for drivable / addressable roads (S1xxx).
 ROAD_MTFCC_RE = re.compile(r"^S1[0-9]{3}$")
 
 
@@ -63,144 +58,101 @@ def normalize_street(s: str) -> str:
     return " ".join(abbr_token(t) for t in s.split() if t)
 
 
-def segments_csv(version: str, state_code: str) -> Path:
-    p = DATA / "out" / version / "segments"
-    p.mkdir(parents=True, exist_ok=True)
-    return p / f"{state_code}.csv"
-
-
-def tiger_state_dir(state_code: str) -> Path:
-    return DATA / "tiger" / state_code
-
-
 def parse_int(s) -> int | None:
     if s is None: return None
     s = str(s).strip()
     if not s: return None
-    # TIGER FROMHN/TOHN sometimes have letters like "100A" - extract leading int.
     m = re.match(r"^(\d+)", s)
     if not m: return None
     try: return int(m.group(1))
     except ValueError: return None
 
 
-def load_edges(zip_path: Path) -> dict[int, dict]:
-    """TLID -> {street, mtfcc, zipl, zipr, geometry}."""
-    out: dict[int, dict] = {}
-    with zipfile.ZipFile(zip_path) as z:
-        names = z.namelist()
-        try:
-            shp_name = next(n for n in names if n.endswith(".shp"))
-            dbf_name = next(n for n in names if n.endswith(".dbf"))
-        except StopIteration:
-            return out
-        shp_b = z.read(shp_name)
-        dbf_b = z.read(dbf_name)
-        r = shapefile.Reader(shp=io.BytesIO(shp_b), dbf=io.BytesIO(dbf_b))
-        # Build field name list (skip the DeletionFlag first field).
-        fields = [f[0] for f in r.fields[1:]]
-        for i, rec in enumerate(r.records()):
-            d = {fields[k]: rec[k] for k in range(len(fields))}
-            mtfcc = d.get("MTFCC", "")
-            if not ROAD_MTFCC_RE.match(mtfcc or ""):
-                continue
-            name = (d.get("FULLNAME") or "").strip()
-            if not name:
-                continue
-            tlid = d.get("TLID")
-            if tlid is None:
-                continue
-            shp = r.shape(i)
-            pts = shp.points
-            if not pts:
-                continue
-            out[int(tlid)] = {
-                "street": normalize_street(name),
-                "zipl": (d.get("ZIPL") or "").strip(),
-                "zipr": (d.get("ZIPR") or "").strip(),
-                "from_lon": float(pts[0][0]),
-                "from_lat": float(pts[0][1]),
-                "to_lon": float(pts[-1][0]),
-                "to_lat": float(pts[-1][1]),
-            }
-    return out
+def segments_csv(version: str, state_code: str) -> Path:
+    p = DATA / "out" / version / "segments"
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"{state_code}.csv"
 
 
-def load_addr(zip_path: Path) -> list[dict]:
-    """Return list of {TLID, FROMHN, TOHN, SIDE, ZIP} dicts."""
-    out: list[dict] = []
-    with zipfile.ZipFile(zip_path) as z:
-        names = z.namelist()
-        try:
-            dbf_name = next(n for n in names if n.endswith(".dbf"))
-        except StopIteration:
-            return out
-        dbf_b = z.read(dbf_name)
-        r = shapefile.Reader(dbf=io.BytesIO(dbf_b))
-        fields = [f[0] for f in r.fields[1:]]
-        for rec in r.records():
-            d = {fields[k]: rec[k] for k in range(len(fields))}
-            tlid = d.get("TLID")
-            if tlid is None: continue
-            out.append({
-                "TLID": int(tlid),
-                "FROMHN": d.get("FROMHN"),
-                "TOHN": d.get("TOHN"),
-                "SIDE": (d.get("SIDE") or "").upper().strip(),
-                "ZIP": (d.get("ZIP") or "").strip(),
-            })
-    return out
+def tiger_gdb_path(state_code: str) -> Path:
+    return DATA / "tiger-gdb" / f"{state_code}_edges.gdb.zip"
 
 
 def log(msg: str) -> None:
     print(f"[tiger-seg] {msg}", flush=True)
 
 
-def build_state(state_code: str, version: str) -> int:
-    sdir = tiger_state_dir(state_code)
-    if not sdir.exists():
-        return 0
-    # county_fips deduced from filenames
-    county_fips_set: set[str] = set()
-    for p in sdir.glob("*_edges.zip"):
-        county_fips_set.add(p.stem.split("_")[0])
-    if not county_fips_set:
-        return 0
+def linestring_endpoints(geom) -> tuple[tuple[float, float], tuple[float, float]] | None:
+    """Return ((from_lon, from_lat), (to_lon, to_lat)) for a LineString or MultiLineString."""
+    if geom is None: return None
+    gtype = geom.get("type")
+    coords = geom.get("coordinates")
+    if not coords: return None
+    if gtype == "LineString":
+        if len(coords) < 2: return None
+        return (tuple(coords[0][:2]), tuple(coords[-1][:2]))
+    if gtype == "MultiLineString":
+        # Take the longest sub-line's endpoints, approximated by sub-line with most vertices.
+        best = max(coords, key=len)
+        if len(best) < 2: return None
+        return (tuple(best[0][:2]), tuple(best[-1][:2]))
+    return None
 
+
+def build_state(state_code: str, version: str) -> int:
+    gdb = tiger_gdb_path(state_code)
+    if not gdb.exists():
+        return 0
     out_path = segments_csv(version, state_code)
     written = 0
     with open(out_path, "w", newline="") as fo:
         w = csv.writer(fo)
         w.writerow(["id", "street_normalized", "zip", "from_hn", "to_hn",
                     "side", "from_lat", "from_lon", "to_lat", "to_lon"])
-        for cf in sorted(county_fips_set):
-            edges_zip = sdir / f"{cf}_edges.zip"
-            addr_zip = sdir / f"{cf}_addr.zip"
-            if not edges_zip.exists() or not addr_zip.exists():
-                continue
-            try:
-                edges = load_edges(edges_zip)
-                addrs = load_addr(addr_zip)
-            except Exception as e:
-                log(f"  {state_code}/{cf}: skip ({e})")
-                continue
-            for a in addrs:
-                tlid = a["TLID"]
-                e = edges.get(tlid)
-                if e is None: continue
-                hn1 = parse_int(a["FROMHN"]); hn2 = parse_int(a["TOHN"])
-                if hn1 is None or hn2 is None: continue
-                lo, hi = min(hn1, hn2), max(hn1, hn2)
-                side = a["SIDE"] or ("L" if e["zipl"] else "R")
-                zip_used = a["ZIP"] or (e["zipl"] if side == "L" else e["zipr"])
-                if not e["street"]:
+        try:
+            layers = fiona.listlayers(f"zip://{gdb}")
+        except Exception as e:
+            log(f"  {state_code}: listlayers failed ({e})")
+            return 0
+        if "All_Lines" not in layers:
+            log(f"  {state_code}: no All_Lines layer (found: {layers})")
+            return 0
+        with fiona.open(f"zip://{gdb}", layer="All_Lines") as f:
+            for feat in f:
+                props = feat["properties"]
+                mtfcc = props.get("MTFCC", "")
+                if not ROAD_MTFCC_RE.match(mtfcc or ""):
                     continue
-                written += 1
-                w.writerow([
-                    written, e["street"], zip_used, lo, hi, side,
-                    f"{e['from_lat']:.6f}", f"{e['from_lon']:.6f}",
-                    f"{e['to_lat']:.6f}", f"{e['to_lon']:.6f}",
-                ])
+                name = (props.get("FULLNAME") or "").strip()
+                if not name:
+                    continue
+                ep = linestring_endpoints(feat.get("geometry"))
+                if ep is None:
+                    continue
+                (fr_lon, fr_lat), (to_lon, to_lat) = ep
+                street = normalize_street(name)
+                if not street:
+                    continue
+                # Left side
+                lfrom = parse_int(props.get("LFROMADD"))
+                lto = parse_int(props.get("LTOADD"))
+                if lfrom is not None and lto is not None:
+                    lo, hi = min(lfrom, lto), max(lfrom, lto)
+                    zip_l = (props.get("ZIPL") or "").strip()
+                    written += 1
+                    w.writerow([written, street, zip_l, lo, hi, "L",
+                                f"{fr_lat:.6f}", f"{fr_lon:.6f}",
+                                f"{to_lat:.6f}", f"{to_lon:.6f}"])
+                # Right side
+                rfrom = parse_int(props.get("RFROMADD"))
+                rto = parse_int(props.get("RTOADD"))
+                if rfrom is not None and rto is not None:
+                    lo, hi = min(rfrom, rto), max(rfrom, rto)
+                    zip_r = (props.get("ZIPR") or "").strip()
+                    written += 1
+                    w.writerow([written, street, zip_r, lo, hi, "R",
+                                f"{fr_lat:.6f}", f"{fr_lon:.6f}",
+                                f"{to_lat:.6f}", f"{to_lon:.6f}"])
     log(f"  {state_code}: {written:,} segments")
     return written
 
