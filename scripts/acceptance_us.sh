@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
 # Cross-region acceptance test for v2 US-wide deployment.
-#
-# Probes:
-#   - /healthz returns ok
-#   - REQUEST_DENIED on bad key
-#   - Several within-metro routes across distant metros (SF, NYC, Miami, Seattle, Austin, Boston)
-#   - One long-haul coord pair per pair tier (cross-state, cross-region, cross-country)
-#
-# Expects HHAPI_API_KEY env var.
-set -euo pipefail
+# Avoids associative arrays so it runs on macOS's stock bash 3.2.
+set -uo pipefail
 : "${HHAPI_API_KEY:?Need HHAPI_API_KEY}"
 BASE="${HHAPI_BASE:-https://hhapi.propspress.com}"
 
 pass=0; fail=0
 
 probe() {
-  local label="$1"; local url="$2"; local check="$3"  # check: regex on response body
+  local label="$1"; local url="$2"; local check="$3"
   local body
   body=$(curl -sS --max-time 30 "$url" || true)
   if [[ -z "$body" ]]; then
@@ -30,56 +23,50 @@ probe() {
   fi
 }
 
+dm() {
+  local orig="$1"; local dest="$2"
+  echo "$BASE/maps/api/distancematrix/json?origins=$orig&destinations=$dest&units=imperial&key=$HHAPI_API_KEY"
+}
+
 echo "=== health ==="
 probe "healthz" "$BASE/healthz" '"status":"ok"'
 
 echo "=== auth ==="
 probe "bad key -> REQUEST_DENIED" "$BASE/maps/api/distancematrix/json?origins=37.77,-122.42&destinations=37.44,-122.14&key=wrong" '"status":"REQUEST_DENIED"'
 
-# Centroids of major metros; coords skip geocoding so this isolates the router.
-declare -A METRO=(
-  [sf]="37.7749,-122.4194"      # San Francisco
-  [la]="34.0522,-118.2437"      # Los Angeles
-  [sea]="47.6062,-122.3321"     # Seattle
-  [pdx]="45.5152,-122.6784"     # Portland
-  [den]="39.7392,-104.9903"     # Denver
-  [aus]="30.2672,-97.7431"      # Austin
-  [hou]="29.7604,-95.3698"      # Houston
-  [chi]="41.8781,-87.6298"      # Chicago
-  [atl]="33.7490,-84.3880"      # Atlanta
-  [mia]="25.7617,-80.1918"      # Miami
-  [bos]="42.3601,-71.0589"      # Boston
-  [nyc]="40.7128,-74.0060"      # New York
-  [dc]="38.9072,-77.0369"       # Washington
-)
-
-# Within-metro short routes (offset destination 10 km east).
 echo "=== within-metro coord routes ==="
-for m in sf la sea pdx den aus hou chi atl mia bos nyc dc; do
-  IFS=',' read -r lat lon <<<"${METRO[$m]}"
-  # 10 km east -> lon delta ~ 0.1 / cos(lat)
-  dlon=$(python3 -c "import math; print(0.1 / math.cos(math.radians($lat)))")
-  dst="$lat,$(python3 -c "print($lon + $dlon)")"
-  probe "$m within-metro" \
-    "$BASE/maps/api/distancematrix/json?origins=${METRO[$m]}&destinations=$dst&key=$HHAPI_API_KEY" \
-    '"status":"OK".*"distance"'
-done
+probe "SF within"         "$(dm 37.7749,-122.4194 37.7849,-122.4094)" '"status":"OK".*"distance"'
+probe "LA within"         "$(dm 34.0522,-118.2437 34.0622,-118.2337)" '"status":"OK".*"distance"'
+probe "Seattle within"    "$(dm 47.6062,-122.3321 47.6162,-122.3221)" '"status":"OK".*"distance"'
+probe "Portland within"   "$(dm 45.5152,-122.6784 45.5252,-122.6684)" '"status":"OK".*"distance"'
+probe "Denver within"     "$(dm 39.7392,-104.9903 39.7492,-104.9803)" '"status":"OK".*"distance"'
+probe "Austin within"     "$(dm 30.2672,-97.7431  30.2772,-97.7331)"  '"status":"OK".*"distance"'
+probe "Houston within"    "$(dm 29.7604,-95.3698  29.7704,-95.3598)"  '"status":"OK".*"distance"'
+probe "Chicago within"    "$(dm 41.8781,-87.6298  41.8881,-87.6198)"  '"status":"OK".*"distance"'
+probe "Atlanta within"    "$(dm 33.7490,-84.3880  33.7590,-84.3780)"  '"status":"OK".*"distance"'
+probe "Miami within"      "$(dm 25.7617,-80.1918  25.7717,-80.1818)"  '"status":"OK".*"distance"'
+probe "Boston within"     "$(dm 42.3601,-71.0589  42.3701,-71.0489)"  '"status":"OK".*"distance"'
+probe "NYC within"        "$(dm 40.7128,-74.0060  40.7228,-73.9960)"  '"status":"OK".*"distance"'
+probe "DC within"         "$(dm 38.9072,-77.0369  38.9172,-77.0269)"  '"status":"OK".*"distance"'
 
-# Cross-region long routes (these will be slower but should complete).
-echo "=== cross-region long routes ==="
-probe "SF -> LA (~380 mi)"     "$BASE/maps/api/distancematrix/json?origins=${METRO[sf]}&destinations=${METRO[la]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
-probe "Seattle -> Portland"     "$BASE/maps/api/distancematrix/json?origins=${METRO[sea]}&destinations=${METRO[pdx]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
-probe "Austin -> Houston"       "$BASE/maps/api/distancematrix/json?origins=${METRO[aus]}&destinations=${METRO[hou]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
-probe "NYC -> DC"               "$BASE/maps/api/distancematrix/json?origins=${METRO[nyc]}&destinations=${METRO[dc]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
-probe "Atlanta -> Miami"        "$BASE/maps/api/distancematrix/json?origins=${METRO[atl]}&destinations=${METRO[mia]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
+echo "=== cross-region long coord routes ==="
+probe "SF -> LA"         "$(dm 37.7749,-122.4194 34.0522,-118.2437)" '"status":"OK".*"distance"'
+probe "Seattle -> PDX"   "$(dm 47.6062,-122.3321 45.5152,-122.6784)" '"status":"OK".*"distance"'
+probe "Austin -> Houston" "$(dm 30.2672,-97.7431 29.7604,-95.3698)" '"status":"OK".*"distance"'
+probe "NYC -> DC"        "$(dm 40.7128,-74.0060 38.9072,-77.0369)" '"status":"OK".*"distance"'
+probe "Atlanta -> Miami" "$(dm 33.7490,-84.3880 25.7617,-80.1918)" '"status":"OK".*"distance"'
 
-# Cross-state short commute (Kurt's question): Niles, MI -> Mishawaka, IN.
-# Exercises the boundary-buffer dedupe in finalize_tile and cross-tile router.
-probe "Niles MI -> Mishawaka IN" "$BASE/maps/api/distancematrix/json?origins=41.8298,-86.2541&destinations=41.6620,-86.1586&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
+echo "=== cross-state commute ==="
+probe "Niles MI -> Mishawaka IN"        "$(dm 41.8298,-86.2541 41.6620,-86.1586)" '"status":"OK".*"distance"'
+probe "KCK -> KCMO"                     "$(dm 39.1142,-94.6275 39.0997,-94.5786)" '"status":"OK".*"distance"'
+probe "Memphis TN -> West Memphis AR"   "$(dm 35.1495,-90.0490 35.1465,-90.1845)" '"status":"OK".*"distance"'
 
-# A few more cross-state commute-distance pairs.
-probe "Kansas City KS -> Kansas City MO" "$BASE/maps/api/distancematrix/json?origins=39.1142,-94.6275&destinations=39.0997,-94.5786&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
-probe "Memphis TN -> West Memphis AR"    "$BASE/maps/api/distancematrix/json?origins=35.1495,-90.0490&destinations=35.1465,-90.1845&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
+echo "=== CA address coverage ==="
+probe "Richmond address"                "$(dm 753+s+49th+st,+richmond,+ca 2531+hinkley+ave,+richmond,+ca)" '"status":"OK".*"distance"'
+probe "SF Market St rooftop"            "$(dm 1+market+st,+san+francisco,+ca 2280+market+st,+san+francisco,+ca)" '"status":"OK".*"distance"'
+probe "TIGER-interp (700 Bair Island)"  "$(dm 700+bair+island+rd,+redwood+city,+ca+94063 200+independence+dr,+menlo+park,+ca+94025)" '"status":"OK".*"distance"'
+probe "Private campus snap (Hacker Way)" "$(dm 2407+carlson+blvd,+richmond,+ca+94804 1+hacker+way,+menlo+park,+ca+94025)" '"status":"OK".*"distance"'
+probe "match field present"             "$(dm 1+market+st,+san+francisco,+ca 2280+market+st,+san+francisco,+ca)" '"origin_matches":\[.*"rooftop"'
 
 echo
 echo "=== $pass pass, $fail fail ==="
