@@ -3,6 +3,7 @@
 // parsed -- rare in real US queries but kept for robustness.
 
 import { parseState } from "./state_parser";
+import { interpolateFromSegments } from "./interpolate";
 
 export interface GeocodeHit {
   status: "OK";
@@ -17,15 +18,37 @@ export type GeocodeResult = GeocodeHit | GeocodeMiss;
 
 const COORD_RE = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/;
 
+// Must match the per-token abbreviator used by the Python address ingest --
+// stored rows have already been normalized with these mappings, so the query
+// has to apply the same ones to match via FTS5 (which splits on whitespace).
+const SUFFIX_ABBR: Record<string, string> = {
+  street: "st", avenue: "ave", boulevard: "blvd", road: "rd", drive: "dr",
+  lane: "ln", court: "ct", place: "pl", terrace: "ter", trail: "trl",
+  parkway: "pkwy", highway: "hwy", circle: "cir", square: "sq", way: "way",
+  alley: "aly", plaza: "plz",
+  str: "st", ave: "ave", blvd: "blvd", rd: "rd", dr: "dr", ln: "ln", ct: "ct",
+  pl: "pl", ter: "ter", trl: "trl", pkwy: "pkwy", hwy: "hwy", cir: "cir",
+  sq: "sq", aly: "aly", plz: "plz",
+};
+const DIR_ABBR: Record<string, string> = {
+  north: "n", south: "s", east: "e", west: "w",
+  northeast: "ne", northwest: "nw", southeast: "se", southwest: "sw",
+};
+
 export function normalizeQuery(q: string): string {
-  // Strip everything not alphanumeric or space, then collapse whitespace.
-  // Critically, drop commas: FTS5's default tokenizer splits on punctuation
-  // when indexing rows, so a query token "st," would never match stored "st".
-  return q
+  // Lowercase, strip non-alphanumeric (incl. commas), collapse whitespace.
+  const cleaned = q
     .toLowerCase()
     .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  if (!cleaned) return "";
+  // Per-token abbreviation -- "road" -> "rd", "avenue" -> "ave", etc.
+  return cleaned
+    .split(" ")
+    .map(t => SUFFIX_ABBR[t] ?? DIR_ABBR[t] ?? t)
+    .filter(Boolean)
+    .join(" ");
 }
 
 async function sha1Hex(s: string): Promise<string> {
@@ -84,8 +107,9 @@ export async function geocode(
   const norm = normalizeQuery(q);
   if (!norm) return { status: "NOT_FOUND", normalized: q };
 
-  // v2 prefix: avoids stale NOT_FOUND cached during pre-fix normalizer rollout.
-  const cacheKey = `geo2:${env.DATA_VERSION}:${await sha1Hex(norm)}`;
+  // Prefix bumps invalidate stale entries; also: only cache OK results
+  // (see below) so partial-data NOT_FOUNDs don't stick around.
+  const cacheKey = `geo4:${env.DATA_VERSION}:${await sha1Hex(norm)}`;
   const hit = await env.CACHE.get(cacheKey, "json") as GeocodeResult | null;
   if (hit) return hit;
 
@@ -110,20 +134,32 @@ export async function geocode(
       ?? null;
   }
 
-  // Confidence threshold: only return rooftop or interpolated.
-  if (!row || (row.tier !== "rooftop" && row.tier !== "interpolated")) {
-    const miss: GeocodeMiss = { status: "NOT_FOUND", normalized: q };
-    await env.CACHE.put(cacheKey, JSON.stringify(miss), { expirationTtl: 60 * 60 * 24 * 30 });
-    return miss;
+  if (row && (row.tier === "rooftop" || row.tier === "interpolated")) {
+    const result: GeocodeHit = {
+      status: "OK",
+      lat: row.lat, lon: row.lon,
+      normalized: row.normalized,
+      state: state ?? "",
+      match: row.tier === "rooftop" ? "rooftop" : "interpolated",
+    };
+    await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 * 60 * 24 * 30 });
+    return result;
   }
 
-  const result: GeocodeHit = {
-    status: "OK",
-    lat: row.lat, lon: row.lon,
-    normalized: row.normalized,
-    state: state ?? "",
-    match: row.tier === "rooftop" ? "rooftop" : "interpolated",
-  };
-  await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 * 60 * 24 * 30 });
-  return result;
+  // Addresses missed -- try TIGER segment interpolation if we know the state.
+  if (state) {
+    const db = shardFor(env, state);
+    if (db) {
+      const interp = await interpolateFromSegments(db, q);
+      if (interp) {
+        interp.state = state;
+        await env.CACHE.put(cacheKey, JSON.stringify(interp), { expirationTtl: 60 * 60 * 24 * 30 });
+        return interp;
+      }
+    }
+  }
+
+  // Only cache OK results -- never cache NOT_FOUND so we don't poison the cache
+  // during partial data loads.
+  return { status: "NOT_FOUND", normalized: q };
 }

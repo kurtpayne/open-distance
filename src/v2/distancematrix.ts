@@ -51,7 +51,8 @@ async function resolveAll(
 }
 
 function legCacheKey(version: string, src: NodeRef, dst: NodeRef): string {
-  return `leg:${version}:${src.tx},${src.ty},${src.dense}:${dst.tx},${dst.ty},${dst.dense}:driving`;
+  // v2 prefix: invalidates legs from the pre-length-fix router.
+  return `leg2:${version}:${src.tx},${src.ty},${src.dense}:${dst.tx},${dst.ty},${dst.dense}:driving`;
 }
 
 function nodeIdStr(n: NodeRef): string { return `${n.tx},${n.ty},${n.dense}`; }

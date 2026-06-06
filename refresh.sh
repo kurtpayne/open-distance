@@ -8,9 +8,9 @@
 #   refresh.sh setup                 ensure venv + deps + dirs
 #   refresh.sh bootstrap             one-time CF resource provisioning
 #                                    (R2 bucket, KV ns, 49 D1 shards, API_KEY secret)
-#   refresh.sh fetch [STATES...]     download OSM PBFs + NAD + OpenAddresses
+#   refresh.sh fetch [STATES...]     download OSM PBFs + NAD + OA + TIGER
 #   refresh.sh tiles [STATES...]     per-state L0 tile build (CSR binaries)
-#   refresh.sh addresses [STATES...] NAD + OA + OSM -> merged per-state CSVs
+#   refresh.sh addresses [STATES...] NAD+OA+OSM merged CSV + TIGER segments CSV
 #   refresh.sh upload-r2             push tiles to R2 (parallel)
 #   refresh.sh load-d1 [STATES...]   push address shards to D1 (parallel HTTP)
 #   refresh.sh publish               write manifest to KV (atomic version)
@@ -122,6 +122,8 @@ stage_fetch() {
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_nad 2>&1 | tee -a "$LOG_DIR/fetch.log"
   log "fetch: OpenAddresses (US, per-source)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_oa --states $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  log "fetch: TIGER EDGES+ADDR (per county)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_tiger $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
 }
 
 stage_tiles() {
@@ -160,6 +162,9 @@ stage_addresses() {
   log "addresses ($v): merge -> per-state .csv (NAD > OA > OSM)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.merge_addresses \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
+  log "addresses ($v): TIGER segments -> per-state segments.csv ($states)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_tiger_segments \
+    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
 }
 
 stage_upload_r2() {
@@ -173,8 +178,11 @@ stage_load_d1() {
   ensure_venv; load_env
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
-  log "load-d1 ($v): parallel HTTP loader, states=$states"
+  log "load-d1 ($v): addresses (parallel HTTP), states=$states"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_parallel \
+    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
+  log "load-d1 ($v): TIGER segments, states=$states"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_segments \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
 }
 

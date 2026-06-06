@@ -22,10 +22,11 @@ class MinHeap {
   private d: number[] = [];
   private t: number[] = [];   // tilePacked
   private n: number[] = [];   // dense
+  private l: number[] = [];   // lenSoFar -- authoritative, in case target tile isn't loaded yet
   get size() { return this.d.length; }
 
-  push(dist: number, tilePacked: number, dense: number) {
-    this.d.push(dist); this.t.push(tilePacked); this.n.push(dense);
+  push(dist: number, tilePacked: number, dense: number, lenSoFar: number) {
+    this.d.push(dist); this.t.push(tilePacked); this.n.push(dense); this.l.push(lenSoFar);
     let i = this.d.length - 1;
     while (i > 0) {
       const p = (i - 1) >> 1;
@@ -33,15 +34,16 @@ class MinHeap {
       const td = this.d[p]; this.d[p] = this.d[i]; this.d[i] = td;
       const tt = this.t[p]; this.t[p] = this.t[i]; this.t[i] = tt;
       const tn = this.n[p]; this.n[p] = this.n[i]; this.n[i] = tn;
+      const tl = this.l[p]; this.l[p] = this.l[i]; this.l[i] = tl;
       i = p;
     }
   }
 
   popInto(out: number[]): void {
-    out[0] = this.d[0]; out[1] = this.t[0]; out[2] = this.n[0];
-    const lastD = this.d.pop()!; const lastT = this.t.pop()!; const lastN = this.n.pop()!;
+    out[0] = this.d[0]; out[1] = this.t[0]; out[2] = this.n[0]; out[3] = this.l[0];
+    const lastD = this.d.pop()!; const lastT = this.t.pop()!; const lastN = this.n.pop()!; const lastL = this.l.pop()!;
     if (this.d.length > 0) {
-      this.d[0] = lastD; this.t[0] = lastT; this.n[0] = lastN;
+      this.d[0] = lastD; this.t[0] = lastT; this.n[0] = lastN; this.l[0] = lastL;
       let i = 0;
       const sz = this.d.length;
       while (true) {
@@ -53,6 +55,7 @@ class MinHeap {
         const td = this.d[best]; this.d[best] = this.d[i]; this.d[i] = td;
         const tt = this.t[best]; this.t[best] = this.t[i]; this.t[i] = tt;
         const tn = this.n[best]; this.n[best] = this.n[i]; this.n[i] = tn;
+        const tl = this.l[best]; this.l[best] = this.l[i]; this.l[i] = tl;
         i = best;
       }
     }
@@ -121,9 +124,9 @@ export async function oneToMany(
   if (remaining === 0) return out;
 
   const heap = new MinHeap();
-  heap.push(0, srcPacked, src.dense);
-  const tmp = [0, 0, 0];
-  const maxSettled = opts.maxSettled ?? 300_000;
+  heap.push(0, srcPacked, src.dense, 0);
+  const tmp = [0, 0, 0, 0];
+  const maxSettled = opts.maxSettled ?? 2_000_000;
 
   let active = srcScratch;
   let activePacked = srcPacked;
@@ -134,6 +137,7 @@ export async function oneToMany(
     const curDist = tmp[0];
     const curTile = tmp[1];
     const curDense = tmp[2];
+    const curLen = tmp[3];
 
     if (curTile !== activePacked) {
       const next = await loadScratch(curTile);
@@ -144,13 +148,15 @@ export async function oneToMany(
 
     if (active.visited[curDense]) continue;
     active.visited[curDense] = 1;
+    // Keep lenTo authoritative even for nodes reached via cross-tile push.
+    active.lenTo[curDense] = curLen;
     settled++;
 
     const tInner = targets.get(curTile);
     if (tInner) {
       const id = tInner.get(curDense);
       if (id !== undefined && !out.has(id)) {
-        out.set(id, { timeS: curDist, lenM: active.lenTo[curDense] });
+        out.set(id, { timeS: curDist, lenM: curLen });
         remaining--;
         if (remaining === 0) break;
       }
@@ -160,7 +166,6 @@ export async function oneToMany(
     if (curDense >= tile.nLocal) continue;
     const eStart = tile.edgeOffsets[curDense];
     const eEnd = tile.edgeOffsets[curDense + 1];
-    const lenAtCur = active.lenTo[curDense];
 
     for (let e = eStart; e < eEnd; e++) {
       const targetIdx = tile.edgeTargets[e];
@@ -178,28 +183,25 @@ export async function oneToMany(
         nextDense = tile.externDense[ei];
       }
       const nd = curDist + edgeT;
-      // If target is in active tile, fast path: typed-array index.
+      const nl = curLen + edgeL;
       if (nextTile === activePacked) {
         if (active.visited[nextDense]) continue;
         if (nd < active.dist[nextDense]) {
           active.dist[nextDense] = nd;
-          active.lenTo[nextDense] = lenAtCur + edgeL;
-          heap.push(nd, nextTile, nextDense);
+          heap.push(nd, nextTile, nextDense, nl);
         }
       } else {
-        // Cross-tile relax: scratch may or may not be loaded yet.
         const otherScratch = scratch.get(nextTile);
         if (otherScratch) {
           if (otherScratch.visited[nextDense]) continue;
           if (nd < otherScratch.dist[nextDense]) {
             otherScratch.dist[nextDense] = nd;
-            otherScratch.lenTo[nextDense] = lenAtCur + edgeL;
-            heap.push(nd, nextTile, nextDense);
+            heap.push(nd, nextTile, nextDense, nl);
           }
         } else {
-          // Not loaded yet. Push to heap; we'll allocate scratch on pop.
-          // No dedupe here -- the visited check on pop catches duplicates.
-          heap.push(nd, nextTile, nextDense);
+          // Target tile not yet loaded. Push with authoritative len so we don't
+          // lose track; visited check on pop handles dupes.
+          heap.push(nd, nextTile, nextDense, nl);
         }
       }
     }
