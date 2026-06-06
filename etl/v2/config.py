@@ -59,11 +59,12 @@ DRIVABLE_HIGHWAY = {
     "service", "road",
 }
 
-# Subset that lifts into the L1 (highway) overlay.
+# Subset that lifts into the L1 (highway) overlay. Keep this TIGHT -- the
+# whole graph must fit in a 128 MB Worker isolate after decoding into typed
+# arrays + a computed reverse CSR. Motorway-only keeps us comfortably under
+# that ceiling and covers ~all true long-haul corridors.
 L1_HIGHWAY = {
     "motorway", "motorway_link",
-    "trunk", "trunk_link",
-    "primary", "primary_link",
 }
 
 # Fallback free-flow speed (km/h) by OSM highway tag.
