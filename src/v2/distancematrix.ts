@@ -3,12 +3,28 @@
 import { geocode, GeocodeResult } from "./geocode";
 import { snapK, getTile, SnapResult } from "./tiles";
 import { oneToMany, NodeRef, DestGroup } from "./router";
+import { getOverlay, snapL1, bidirAStar } from "./overlay";
 import { formatDistance, formatDuration, Units } from "../format";
 
 // Number of snap candidates to keep per endpoint. Lets the router fall back to
 // the next-nearest node when the first one is on an isolated graph fragment
 // (e.g. a private campus road).
 const SNAP_K = 5;
+
+// Above this straight-line distance, use the L1 highway overlay instead of
+// the tiled L0 graph. Tuned to: long enough that L0 weighted-A* still works
+// reliably under it, short enough that we don't miss anything truly local.
+const L1_DISPATCH_M = 320_000;  // ~200 mi
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 export interface Env {
   GRAPH: R2Bucket;
@@ -191,15 +207,47 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
       await writeLegCacheBatch(env, srcNode, legsToCache, dstByKey);
     }
 
+    // L1 fallback for long-distance pairs that the L0 router gave up on
+    // (ZERO_RESULTS) or that exceed the dispatch threshold straight-line.
+    const oGeo = oR[i].geocode as { lat?: number; lon?: number };
+    const longLegs = new Map<number, { timeS: number; lenM: number } | null>();
+    let needL1: number[] = [];
+    for (let j = 0; j < destinations.length; j++) {
+      const t1 = destTop1[j];
+      if (!t1 || dR[j].geocode.status !== "OK") continue;
+      const dGeo = dR[j].geocode as { lat?: number; lon?: number };
+      if (oGeo.lat === undefined || dGeo.lat === undefined) continue;
+      const straight = haversineMeters(oGeo.lat!, oGeo.lon!, dGeo.lat!, dGeo.lon!);
+      const haveL0 = (cached.get(nodeIdStr(t1)) ?? computed.get(`d${j}`)) !== undefined;
+      if (straight >= L1_DISPATCH_M || !haveL0) needL1.push(j);
+    }
+    if (needL1.length > 0) {
+      try {
+        const overlay = await getOverlay(env.GRAPH, env.DATA_VERSION);
+        for (const j of needL1) {
+          const dGeo = dR[j].geocode as { lat?: number; lon?: number };
+          if (oGeo.lat === undefined || dGeo.lat === undefined) { longLegs.set(j, null); continue; }
+          const sSnap = snapL1(overlay, oGeo.lat!, oGeo.lon!);
+          const tSnap = snapL1(overlay, dGeo.lat!, dGeo.lon!);
+          if (!sSnap || !tSnap) { longLegs.set(j, null); continue; }
+          const leg = bidirAStar(overlay, sSnap.node, tSnap.node);
+          longLegs.set(j, leg);
+        }
+      } catch {
+        // Overlay not available -- fall through; affected dests will return ZERO_RESULTS.
+      }
+    }
+
     for (let j = 0; j < destinations.length; j++) {
       const t1 = destTop1[j];
       if (!t1 || dR[j].geocode.status !== "OK") {
         elements.push({ status: "NOT_FOUND" });
         continue;
       }
-      const cachedLeg = cached.get(nodeIdStr(t1));
-      const computedLeg = computed.get(`d${j}`);
-      const leg = cachedLeg ?? computedLeg;
+      // Prefer L0 leg when present; otherwise fall back to L1.
+      const l0Leg = cached.get(nodeIdStr(t1)) ?? computed.get(`d${j}`);
+      const l1Leg = longLegs.get(j);
+      const leg = l0Leg ?? l1Leg ?? null;
       if (!leg) { elements.push({ status: "ZERO_RESULTS" }); continue; }
       const meters = Math.round(leg.lenM);
       const seconds = Math.round(leg.timeS);
