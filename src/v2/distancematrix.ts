@@ -114,6 +114,13 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
 
   const originAddresses = oR.map((r, i) => r.geocode.status === "OK" ? (r.geocode as { normalized: string }).normalized : origins[i]);
   const destinationAddresses = dR.map((r, i) => r.geocode.status === "OK" ? (r.geocode as { normalized: string }).normalized : destinations[i]);
+  // Per-endpoint confidence indicator. Mirrors the address arrays.
+  //   rooftop      = exact mapped point (NAD / OA rooftop dataset)
+  //   interpolated = OSM addr-tagged node, or TIGER segment interpolation -- could be off by ~30-100m
+  //   coords       = caller passed "lat,lng" directly; no geocode performed
+  //   "" (empty)   = geocode failed (the address shows as the raw input)
+  const originMatches = oR.map(r => r.geocode.status === "OK" ? (r.geocode as { match: string }).match : "");
+  const destinationMatches = dR.map(r => r.geocode.status === "OK" ? (r.geocode as { match: string }).match : "");
 
   const rows: { elements: Element[] }[] = [];
 
@@ -171,7 +178,9 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
 
   return jsonResponse({
     destination_addresses: destinationAddresses,
+    destination_matches: destinationMatches,
     origin_addresses: originAddresses,
+    origin_matches: originMatches,
     rows,
     status: "OK",
   });
