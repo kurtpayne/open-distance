@@ -16,6 +16,13 @@ const SNAP_K = 5;
 // reliably under it, short enough that we don't miss anything truly local.
 const L1_DISPATCH_M = 320_000;  // ~200 mi
 
+// L1 dispatch is gated by an env-var feature flag so a half-built / oversized
+// L1 binary in R2 can't OOM the isolate. Set L1_ENABLED=1 once the overlay
+// binary is known to fit under the 128 MB Worker memory limit.
+function l1Enabled(env: { L1_ENABLED?: unknown }): boolean {
+  return String(env.L1_ENABLED ?? "") === "1";
+}
+
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const toRad = Math.PI / 180;
@@ -221,7 +228,7 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
       const haveL0 = (cached.get(nodeIdStr(t1)) ?? computed.get(`d${j}`)) !== undefined;
       if (straight >= L1_DISPATCH_M || !haveL0) needL1.push(j);
     }
-    if (needL1.length > 0) {
+    if (needL1.length > 0 && l1Enabled(env)) {
       try {
         const overlay = await getOverlay(env.GRAPH, env.DATA_VERSION);
         for (const j of needL1) {
