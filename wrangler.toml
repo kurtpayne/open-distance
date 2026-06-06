@@ -31,6 +31,10 @@ id = "f36df580b639463b85b337a0b2e9ab20"
 pattern = "hhapi.propspress.com"
 custom_domain = true
 
+[[routes]]
+pattern = "open-distance.com"
+custom_domain = true
+
 [limits]
 cpu_ms = 30000
 
