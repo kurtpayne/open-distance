@@ -94,8 +94,10 @@ stage_setup() { ensure_venv; }
 stage_fetch() {
   ensure_venv
   local states; states=$(resolve_states "$@")
-  log "fetch: $states"
+  log "fetch: OSM PBFs ($states)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_sources $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  log "fetch: NAD (national)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_nad 2>&1 | tee -a "$LOG_DIR/fetch.log"
 }
 
 stage_tiles() {
@@ -117,8 +119,14 @@ stage_addresses() {
   ensure_venv
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
-  log "addresses ($v): $states"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_addresses --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
+  local nad_zip="$DATA_V2/nad/nad-txt.zip"
+  if [[ ! -f "$nad_zip" ]]; then
+    log "ERROR: NAD ZIP missing at $nad_zip. Run: refresh.sh fetch"
+    return 1
+  fi
+  log "addresses ($v): NAD slice into per-state CSVs ($states)"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_nad_addresses \
+    --version "$v" --zip "$nad_zip" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
 }
 
 stage_upload_r2() {
@@ -132,8 +140,9 @@ stage_load_d1() {
   ensure_venv; load_env
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
-  log "load-d1 ($v): $states"
-  bash "$ROOT/etl/v2/load_d1_shards.sh" "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
+  log "load-d1 ($v): parallel HTTP loader, states=$states"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_parallel \
+    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
 }
 
 stage_publish() {

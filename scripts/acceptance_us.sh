@@ -73,6 +73,14 @@ probe "Austin -> Houston"       "$BASE/maps/api/distancematrix/json?origins=${ME
 probe "NYC -> DC"               "$BASE/maps/api/distancematrix/json?origins=${METRO[nyc]}&destinations=${METRO[dc]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
 probe "Atlanta -> Miami"        "$BASE/maps/api/distancematrix/json?origins=${METRO[atl]}&destinations=${METRO[mia]}&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
 
+# Cross-state short commute (Kurt's question): Niles, MI -> Mishawaka, IN.
+# Exercises the boundary-buffer dedupe in finalize_tile and cross-tile router.
+probe "Niles MI -> Mishawaka IN" "$BASE/maps/api/distancematrix/json?origins=41.8298,-86.2541&destinations=41.6620,-86.1586&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
+
+# A few more cross-state commute-distance pairs.
+probe "Kansas City KS -> Kansas City MO" "$BASE/maps/api/distancematrix/json?origins=39.1142,-94.6275&destinations=39.0997,-94.5786&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
+probe "Memphis TN -> West Memphis AR"    "$BASE/maps/api/distancematrix/json?origins=35.1495,-90.0490&destinations=35.1465,-90.1845&key=$HHAPI_API_KEY" '"status":"OK".*"distance"'
+
 echo
 echo "=== $pass pass, $fail fail ==="
 [[ $fail -eq 0 ]]
