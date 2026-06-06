@@ -1,7 +1,12 @@
 # hhapi
 
-Serverless distance/duration API on Cloudflare's edge, response-compatible with
-Google's legacy Distance Matrix API.
+A serverless distance/duration API on Cloudflare's edge, response-compatible
+with Google's legacy Distance Matrix API. Built as a cheap, fork-and-deploy
+alternative to commercial mapping APIs — runs for **~$5–10/month** on
+Cloudflare for the entire continental US.
+
+[License: Apache 2.0](LICENSE) · [Data attribution: NOTICE.md](NOTICE.md) ·
+[Contributing](CONTRIBUTING.md)
 
 - Hostname: `https://hhapi.propspress.com`
 - Auth: `key=` query param (Google-style)
@@ -99,17 +104,24 @@ Preconditions (one-time on the machine):
 ```
 brew install osmium-tool
 npm install
-# Cloudflare auth: token in ~/skillscan-family/.env as CLOUDFLARE_API_KEY,
-#                  or export CLOUDFLARE_API_TOKEN
+# Cloudflare auth: copy .env.example to .env and fill in the values,
+#                  or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID directly
 # Worker API key:  export HHAPI_API_KEY=hhapi_…
 ```
 
 Then:
 
 ```
-./refresh.sh bootstrap   # one-time: R2 bucket, KV ns, 49 D1 shards, secret
-./refresh.sh all         # everything: fetch → build → upload → load → publish
+cp .env.example .env             # then edit .env with your CF token, account, hostname, API key
+./refresh.sh bootstrap            # one-time: R2 bucket, KV ns, 49 D1 shards, secret
+scripts/materialize_wrangler.sh   # substitutes IDs into wrangler.toml from the template
+./refresh.sh all                  # everything: fetch → build → upload → load → publish
 ```
+
+The first `./refresh.sh all` is long — several hours of downloads (~50 GB
+of source data) plus several hours of build CPU. Subsequent monthly refreshes
+are similar (the spec calls for a monthly cadence to pick up address updates).
+You can also restrict to a single state for development: `./refresh.sh all CA`.
 
 Individual stages (resumable, idempotent):
 

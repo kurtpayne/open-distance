@@ -5,7 +5,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Auth via env (loaded from ~/skillscan-family/.env by deploy.sh wrapper, or pre-set)
+# Auth via env (CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID must be exported)
 : "${CLOUDFLARE_API_TOKEN:?Need CLOUDFLARE_API_TOKEN}"
 : "${CLOUDFLARE_ACCOUNT_ID:?Need CLOUDFLARE_ACCOUNT_ID}"
 

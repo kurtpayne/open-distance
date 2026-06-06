@@ -18,8 +18,10 @@
 #
 # STATES are 2-letter USPS codes (CA, TX, NY). Default = all 48 + DC.
 #
-# Auth: reads CLOUDFLARE_API_KEY (token) from ~/skillscan-family/.env.
-# Override location with HHAPI_ENV_FILE.
+# Auth: looks for CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY in (in order):
+#   $HHAPI_ENV_FILE if set
+#   ./.env at the repo root
+#   the existing shell environment
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -40,13 +42,25 @@ die()  { log "ERROR: $*"; exit 1; }
 # env
 # ---------------------------------------------------------------------------
 load_env() {
-  local envfile="${HHAPI_ENV_FILE:-$HOME/skillscan-family/.env}"
+  local envfile="${HHAPI_ENV_FILE:-$ROOT/.env}"
   if [[ -f "$envfile" ]]; then
-    export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-$(grep '^CLOUDFLARE_API_KEY=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)}"
-    export HHAPI_API_KEY="${HHAPI_API_KEY:-$(grep '^HHAPI_API_KEY=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)}"
+    # Accept either CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY (alias used by
+    # some user shells); use whichever appears first.
+    if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+      export CLOUDFLARE_API_TOKEN="$(grep -E '^CLOUDFLARE_API_(TOKEN|KEY)=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+    fi
+    if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+      export CLOUDFLARE_ACCOUNT_ID="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+    fi
+    if [[ -z "${HHAPI_API_KEY:-}" ]]; then
+      export HHAPI_API_KEY="$(grep '^HHAPI_API_KEY=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+    fi
+    if [[ -z "${HHAPI_HOSTNAME:-}" ]]; then
+      export HHAPI_HOSTNAME="$(grep '^HHAPI_HOSTNAME=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+    fi
   fi
-  export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-b5cdaad4db136b796354280697e0ceb9}"
-  [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN not set (looked in $envfile)"
+  [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN not set (set it directly or put it in $envfile)"
+  [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] || die "CLOUDFLARE_ACCOUNT_ID not set"
 }
 
 # ---------------------------------------------------------------------------
