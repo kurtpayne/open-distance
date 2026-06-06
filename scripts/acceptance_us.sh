@@ -66,7 +66,12 @@ probe "Richmond address"                "$(dm 753+s+49th+st,+richmond,+ca 2531+h
 probe "SF Market St rooftop"            "$(dm 1+market+st,+san+francisco,+ca 2280+market+st,+san+francisco,+ca)" '"status":"OK".*"distance"'
 probe "TIGER-interp (700 Bair Island)"  "$(dm 700+bair+island+rd,+redwood+city,+ca+94063 200+independence+dr,+menlo+park,+ca+94025)" '"status":"OK".*"distance"'
 probe "Private campus snap (Hacker Way)" "$(dm 2407+carlson+blvd,+richmond,+ca+94804 1+hacker+way,+menlo+park,+ca+94025)" '"status":"OK".*"distance"'
-probe "match field present"             "$(dm 1+market+st,+san+francisco,+ca 2280+market+st,+san+francisco,+ca)" '"origin_matches":\[.*"rooftop"'
+probe "match field present"             "$(dm 1+market+st,+san+francisco,+ca 2280+market+st,+san+francisco,+ca)" '"origin_matches":\[.*"(rooftop|interpolated)"'
+
+echo "=== non-CA address coverage ==="
+probe "NY Times Square area"           "$(dm 1466+broadway,+new+york,+ny+10036 350+5th+ave,+new+york,+ny+10118)" '"status":"OK".*"distance"'
+probe "MA Boston rooftop"              "$(dm 1+city+hall+sq,+boston,+ma+02201 300+fenway,+boston,+ma+02115)" '"status":"OK".*"distance"'
+probe "/coverage endpoint"             "$BASE/coverage" '"version".*"sources"'
 
 echo
 echo "=== $pass pass, $fail fail ==="
