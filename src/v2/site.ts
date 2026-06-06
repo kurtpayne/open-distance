@@ -369,6 +369,20 @@ export function renderDocs(): string {
    <code>/coverage</code> endpoint sends <code>max-age=86400</code>. You're
    welcome to cache responses in your own backend for as long as you like.</p>
 
+<h3>Rate limits</h3>
+<p>Per-IP rate limits on the hosted deployment:</p>
+<ul>
+  <li><strong>25</strong> requests per second</li>
+  <li><strong>500</strong> requests per hour</li>
+  <li><strong>10,000</strong> requests per day</li>
+</ul>
+<p>On a hit, the API returns HTTP <code>429</code> with
+   <code>"status":"OVER_QUERY_LIMIT"</code>, a <code>Retry-After</code> header,
+   and an <code>x-ratelimit-tier</code> header (<code>sec</code>,
+   <code>hour</code>, or <code>day</code>) indicating which bucket overflowed.
+   If you regularly bump against these, self-host: limits are configurable per
+   tier via env vars, or set all three to 0 for an unlimited deployment.</p>
+
 <h3>Deviations from the legacy Distance Matrix shape</h3>
 <ul>
   <li>No <code>fare</code>, <code>duration_in_traffic</code>, <code>geocoded_waypoints</code>, <code>copyrights</code>, or <code>warnings</code> fields.</li>

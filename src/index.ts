@@ -5,6 +5,7 @@ import {
   handleCoverage as v2Coverage,
 } from "./v2/distancematrix";
 import { renderIndex, renderDocs, renderPrivacy, htmlHeaders } from "./v2/site";
+import { checkRateLimit, rateLimitResponse, readLimitsFromEnv } from "./v2/ratelimit";
 
 type Env = V2Env;
 
@@ -16,9 +17,15 @@ export default {
     if (url.pathname === "/healthz") return v2Health(env);
     if (url.pathname === "/coverage") return v2Coverage(env);
     if (url.pathname === "/maps/api/distancematrix/json") {
-      // No auth required. CF Rate Limiting rules handle abuse on the canonical
-      // open-distance.com deployment; forks can re-introduce a key check in
-      // `auth.ts` and gate behind it here if they want a private API.
+      // KV-backed per-IP rate limiter. Default 25/sec, 500/hour, 10k/day per
+      // IP. Self-hosters can tune via RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY
+      // env vars, or set any to 0 to disable that tier. Set all three to 0
+      // for an unlimited deployment (private fork inside a trusted network,
+      // for example).
+      const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
+      const limits = readLimitsFromEnv(env as unknown as Record<string, unknown>);
+      const rl = await checkRateLimit(env.CACHE, ip, limits);
+      if (!rl.ok) return rateLimitResponse(rl, limits);
       return v2Handle(url, env);
     }
 
