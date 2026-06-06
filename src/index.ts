@@ -1,5 +1,10 @@
 import { checkKey, deniedResponse } from "./auth";
-import { Env as V2Env, handleDistanceMatrix as v2Handle, healthCheck as v2Health } from "./v2/distancematrix";
+import {
+  Env as V2Env,
+  handleDistanceMatrix as v2Handle,
+  healthCheck as v2Health,
+  handleCoverage as v2Coverage,
+} from "./v2/distancematrix";
 
 type Env = V2Env;
 
@@ -9,6 +14,10 @@ export default {
 
     if (url.pathname === "/healthz") {
       return v2Health(env);
+    }
+
+    if (url.pathname === "/coverage") {
+      return v2Coverage(env);
     }
 
     if (url.pathname === "/maps/api/distancematrix/json") {

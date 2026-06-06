@@ -31,11 +31,10 @@ function splitMulti(v: string | null): string[] {
   return v.split("|").map(s => s.trim()).filter(Boolean);
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json; charset=UTF-8" },
-  });
+function jsonResponse(body: unknown, status = 200, cacheControl?: string): Response {
+  const headers: Record<string, string> = { "content-type": "application/json; charset=UTF-8" };
+  if (cacheControl) headers["cache-control"] = cacheControl;
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
 interface ResolvedEndpoint {
@@ -131,10 +130,17 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
 
   // Each destination becomes a group keyed by its index. Group candidates are
   // the top-K snap results -- the router settles when it reaches any of them.
-  const destGroups: DestGroup[] = dR.map((r, j) => ({
-    id: `d${j}`,
-    candidates: r.snaps.map(s => ({ tx: s.tx, ty: s.ty, dense: s.dense })),
-  }));
+  // destLat/destLon come from the geocoded address (within ~200m of any snap
+  // candidate); A* uses them as the heuristic target.
+  const destGroups: DestGroup[] = dR.map((r, j) => {
+    const g = r.geocode as { lat?: number; lon?: number };
+    return {
+      id: `d${j}`,
+      candidates: r.snaps.map(s => ({ tx: s.tx, ty: s.ty, dense: s.dense })),
+      destLat: g.lat ?? 0,
+      destLon: g.lon ?? 0,
+    };
+  });
   // Leg-cache key uses just the top-1 candidate (the common case). If we have
   // to use a later candidate, that result still gets cached so future requests
   // for the same address skip the work.
@@ -206,6 +212,9 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     rows.push({ elements });
   }
 
+  // Identical requests are cacheable on Cloudflare's edge for an hour --
+  // huge win for the house-hunting loop that re-scores the same candidate
+  // against the same destinations.
   return jsonResponse({
     destination_addresses: destinationAddresses,
     destination_matches: destinationMatches,
@@ -213,7 +222,45 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     origin_matches: originMatches,
     rows,
     status: "OK",
-  });
+  }, 200, "public, max-age=3600, s-maxage=3600");
+}
+
+export async function handleCoverage(env: Env): Promise<Response> {
+  const states = [
+    "AL","AZ","AR","CA","CO","CT","DE","DC","FL","GA","ID","IL","IN","IA","KS","KY",
+    "LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC",
+    "ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
+  ];
+  const headers: Record<string, string> = {
+    "content-type": "application/json; charset=UTF-8",
+    "cache-control": "public, max-age=86400, s-maxage=86400",
+  };
+  return new Response(JSON.stringify({
+    version: env.DATA_VERSION,
+    coverage: "continental US (lower 48 + DC)",
+    states,
+    sources: {
+      roads: "OpenStreetMap (Geofabrik per-state, 0.25 deg tiles)",
+      addresses: ["NAD (US DOT, rooftop)", "OpenAddresses (rooftop)", "OSM addr:* nodes (interpolated)"],
+      interpolation: "Census TIGER 2024 edges-geodatabase (per-state)",
+    },
+    confidence_indicator: {
+      response_fields: ["origin_matches", "destination_matches"],
+      values: {
+        rooftop: "exact mapped point (NAD or OpenAddresses)",
+        interpolated: "OSM addr-node or TIGER segment interpolation (~30-100m)",
+        coords: "caller-supplied lat,lng directly",
+        empty: "geocode failed; raw input echoed",
+      },
+    },
+    deviations_from_google: [
+      "key= is our own API key, not Google's",
+      "no live traffic; free-flow time only",
+      "place_id: inputs return NOT_FOUND",
+      "long cross-country routes may return ZERO_RESULTS (commute distances work)",
+      "centroid-quality geocodes return NOT_FOUND instead of approximate",
+    ],
+  }), { status: 200, headers });
 }
 
 // /healthz helper: confirm a sentinel tile is fetchable.
