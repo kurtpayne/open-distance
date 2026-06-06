@@ -110,15 +110,16 @@ const FORM_JS = `
 `;
 
 const SITE_DESCRIPTION =
-  "Free open-source distance and duration matrix API for the continental US — " +
-  "an alternative to Google Maps Distance Matrix. No API key, no registration, " +
-  "Google-compatible JSON response, fork and self-host for ~$5/month on Cloudflare.";
+  "Free open-source distance and duration matrix API for the continental US. " +
+  "No API key, no registration, response-compatible with the legacy Distance " +
+  "Matrix JSON shape. Fork and self-host for ~$5/month on Cloudflare.";
 
 const SITE_KEYWORDS =
-  "free maps api, alternative to google maps, distance matrix api, " +
+  "free maps api, free distance matrix api, distance matrix api, " +
   "open source distance api, free distance api, free geocoder, " +
-  "google maps alternative, free routing api, free driving distance api, " +
-  "openstreetmap distance api, self-hosted maps api";
+  "free routing api, free driving distance api, " +
+  "openstreetmap distance api, self-hosted maps api, " +
+  "alternative to commercial maps api";
 
 function shell(title: string, body: string, extraHead = "", path = "/"): string {
   const canonical = `https://open-distance.com${path}`;
@@ -203,11 +204,15 @@ ${body}
 export function renderIndex(): string {
   const body = `
 <p class="pitch">
-  <strong>Use open-distance as your first layer.</strong> Try our distance
-  matrix first, cache the result. If the per-endpoint confidence
-  (<code>rooftop</code> / <code>interpolated</code>) is good enough for your
-  use case, you're done — and you didn't pay anyone. If you need traffic-aware
-  routing or a low-confidence endpoint, fall back to Google.
+  <strong>Commercial APIs are excellent — they're the gold standard for live
+  traffic, rendered maps, and the long tail of edge cases.</strong>
+  open-distance doesn't try to compete on quality. It's just free.<br><br>
+  Use it as your first layer: try our distance matrix first, cache the result.
+  If the per-endpoint confidence (<code>rooftop</code> /
+  <code>interpolated</code>) is good enough for your use case, you're done.
+  If you need traffic-aware routing or the geocode came back low-confidence,
+  fall back to a paid API for those queries only. Most applications need the
+  premium answer for less than 100% of their requests.
 </p>
 
 <form id="try-form" autocomplete="off">
@@ -246,26 +251,28 @@ export function renderIndex(): string {
 </div>
 
 <h2>Why this exists</h2>
-<p>Google's Distance Matrix is $5 per 1,000 calls with a no-caching clause.
-   For applications like commute comparison, route screening, or any
-   distance-based heuristic, that's pure rent. open-distance gives you the
-   same wire format from open data, free, with no key. Cache the response
-   yourself — there's no clause stopping you — and fall back to Google only
-   for the ~10–20% of queries where you actually need the premium answer.</p>
+<p>Distance and duration are useful in lots of applications that don't
+   strictly need a commercial mapping API: commute comparison, route
+   screening, simple "how far is X from Y" heuristics, batch ETAs from a
+   warehouse to a list of stops. Commercial APIs make these queries
+   straightforward but pricing per-call adds up fast, especially at volume.
+   open-distance gives you the same wire format from open data, free, with
+   no key — so you can cache the result and use a premium API only for the
+   subset of queries that actually need traffic-aware or premium answers.</p>
 
 <h2>Honest accuracy</h2>
 <p>We're built on OpenStreetMap road geometry, NAD + OpenAddresses for
    addresses, TIGER for street-range interpolation. Free-flow durations only
    (no live traffic). For typical metro and inter-city routes:</p>
 <ul>
-  <li><strong>Distance</strong>: typically within 1–3% of Google for the same
-      origin/destination pair</li>
-  <li><strong>Time</strong>: 5–15% off in off-peak hours (no live traffic);
-      can drift higher in rush-hour scenarios where Google sees congestion
-      and we don't</li>
+  <li><strong>Distance</strong>: typically within a few percent of a
+      commercial reference for the same origin/destination pair</li>
+  <li><strong>Time</strong>: a single-digit percent off in off-peak hours
+      (no live traffic); larger gap in rush-hour scenarios where a
+      traffic-aware API sees congestion and we don't</li>
   <li><strong>Geocode confidence</strong>: rooftop (NAD / OpenAddresses) is
-      indistinguishable from a commercial geocoder; interpolated (OSM /
-      TIGER) is typically within ~30–100 m of the actual building</li>
+      comparable to a commercial geocoder; interpolated (OSM / TIGER) is
+      typically within ~30–100 m of the actual building</li>
 </ul>
 
 <h2>What this is, and what it isn't</h2>
@@ -274,13 +281,15 @@ export function renderIndex(): string {
   <li><strong>Free.</strong> No API key, no registration, no payment, no
       contact required. Hosted free at open-distance.com; self-host for ~$5/mo
       on Cloudflare.</li>
-  <li><strong>80% as good</strong> as Google for the distance + duration use
-      case. Same wire format, comparable accuracy on free-flow time, same or
-      better accuracy on distance. Confidence indicator lets you gate the
-      remaining 20% to a paid fallback.</li>
+  <li><strong>Good enough for many use cases, honest about what it isn't.</strong>
+      We don't claim parity with a commercial Distance Matrix API. We aim for
+      <em>good-enough-when-traffic-doesn't-matter</em>: comparable distance
+      numbers, free-flow durations only. The confidence indicator on each
+      response lets you gate any query to a paid fallback when you need the
+      premium answer.</li>
   <li><strong>Open.</strong> Apache 2.0 source, ODbL/public-domain data, the
-      whole stack is auditable. You can run it yourself and we can't take it
-      back.</li>
+      whole stack is auditable. You can run it yourself; the canonical hosted
+      deployment is just one of many possible.</li>
 </ul>
 
 <h3>Non-goals</h3>
@@ -357,16 +366,15 @@ export function renderDocs(): string {
 <h3>Caching</h3>
 <p>Successful responses send <code>Cache-Control: public, max-age=3600</code>,
    so Cloudflare's edge cache absorbs identical queries for an hour. The
-   <code>/coverage</code> endpoint sends <code>max-age=86400</code>. There is
-   no clause that stops you from caching results in your own backend for as
-   long as you like.</p>
+   <code>/coverage</code> endpoint sends <code>max-age=86400</code>. You're
+   welcome to cache responses in your own backend for as long as you like.</p>
 
-<h3>Deviations from Google's legacy Distance Matrix</h3>
+<h3>Deviations from the legacy Distance Matrix shape</h3>
 <ul>
   <li>No <code>fare</code>, <code>duration_in_traffic</code>, <code>geocoded_waypoints</code>, <code>copyrights</code>, or <code>warnings</code> fields.</li>
   <li><code>place_id:</code> inputs return <code>NOT_FOUND</code>.</li>
   <li>Only <code>mode=driving</code> is supported.</li>
-  <li><code>match</code> arrays added (Google ignores unknown fields, so old clients are unaffected).</li>
+  <li><code>match</code> arrays added (the legacy schema ignores unknown fields, so existing clients are unaffected).</li>
   <li>Centroid-quality geocodes return <code>NOT_FOUND</code> rather than confidently-wrong distances.</li>
 </ul>
 
