@@ -1,3 +1,8 @@
+[![CI](https://github.com/kurtpayne/hhapi/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kurtpayne/hhapi/actions/workflows/ci.yml)
+[![Deploy](https://github.com/kurtpayne/hhapi/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/kurtpayne/hhapi/actions/workflows/deploy.yml)
+[![Acceptance](https://github.com/kurtpayne/hhapi/actions/workflows/acceptance.yml/badge.svg?branch=main)](https://github.com/kurtpayne/hhapi/actions/workflows/acceptance.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 # open-distance
 
 A serverless distance/duration API on Cloudflare's edge, response-compatible

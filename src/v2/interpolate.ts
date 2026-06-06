@@ -4,7 +4,7 @@
 // from the query, looks up a matching segment by (street_normalized, hn range),
 // and interpolates lat/lon along the segment.
 
-import { GeocodeHit } from "./geocode";
+import type { GeocodeHit } from "./geocode";
 
 
 const SUFFIX_ABBR: Record<string, string> = {
@@ -39,7 +39,9 @@ export interface ParsedAddress {
 }
 
 const PARSE_RE = /^\s*(\d+)\b\s+([^,]+?)(?:,|\s+\d{5}|$)/;
-const ZIP_RE = /\b(\d{5})(?:-\d{4})?\b/;
+// Match all 5-digit-ZIP-shaped tokens; we take the LAST one so a 5-digit
+// house number at the start doesn't get mistaken for a ZIP at the end.
+const ZIP_RE_G = /\b(\d{5})(?:-\d{4})?\b/g;
 
 export function parseHouseAndStreet(query: string): ParsedAddress | null {
   const m = query.match(PARSE_RE);
@@ -50,12 +52,12 @@ export function parseHouseAndStreet(query: string): ParsedAddress | null {
   if (!rawStreet) return null;
   const street = normalizeStreet(rawStreet);
   if (!street) return null;
-  const zm = query.match(ZIP_RE);
+  const zips = [...query.matchAll(ZIP_RE_G)];
   return {
     number: num,
     street,
     raw_street: rawStreet,
-    zip: zm ? zm[1] : null,
+    zip: zips.length > 0 ? zips[zips.length - 1][1] : null,
   };
 }
 

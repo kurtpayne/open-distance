@@ -18,38 +18,10 @@ export type GeocodeResult = GeocodeHit | GeocodeMiss;
 
 const COORD_RE = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/;
 
-// Must match the per-token abbreviator used by the Python address ingest --
-// stored rows have already been normalized with these mappings, so the query
-// has to apply the same ones to match via FTS5 (which splits on whitespace).
-const SUFFIX_ABBR: Record<string, string> = {
-  street: "st", avenue: "ave", boulevard: "blvd", road: "rd", drive: "dr",
-  lane: "ln", court: "ct", place: "pl", terrace: "ter", trail: "trl",
-  parkway: "pkwy", highway: "hwy", circle: "cir", square: "sq", way: "way",
-  alley: "aly", plaza: "plz",
-  str: "st", ave: "ave", blvd: "blvd", rd: "rd", dr: "dr", ln: "ln", ct: "ct",
-  pl: "pl", ter: "ter", trl: "trl", pkwy: "pkwy", hwy: "hwy", cir: "cir",
-  sq: "sq", aly: "aly", plz: "plz",
-};
-const DIR_ABBR: Record<string, string> = {
-  north: "n", south: "s", east: "e", west: "w",
-  northeast: "ne", northwest: "nw", southeast: "se", southwest: "sw",
-};
-
-export function normalizeQuery(q: string): string {
-  // Lowercase, strip non-alphanumeric (incl. commas), collapse whitespace.
-  const cleaned = q
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!cleaned) return "";
-  // Per-token abbreviation -- "road" -> "rd", "avenue" -> "ave", etc.
-  return cleaned
-    .split(" ")
-    .map(t => SUFFIX_ABBR[t] ?? DIR_ABBR[t] ?? t)
-    .filter(Boolean)
-    .join(" ");
-}
+// Re-export so existing imports of `normalizeQuery` from "./geocode" keep
+// working; implementation lives in ./normalize for unit-test isolation.
+import { normalizeQuery } from "./normalize";
+export { normalizeQuery };
 
 async function sha1Hex(s: string): Promise<string> {
   const data = new TextEncoder().encode(s);
