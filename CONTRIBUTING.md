@@ -66,6 +66,23 @@ Open an issue before sending a PR for:
   Only add comments for non-obvious *why* — workarounds, hidden constraints,
   references to upstream bugs, etc.
 
+## GitHub Actions
+
+For a fork to use the workflows in `.github/workflows/`, set these repository
+secrets (Settings → Secrets and variables → Actions):
+
+| Secret              | Used by              | What it holds                                |
+|---------------------|----------------------|----------------------------------------------|
+| `CLOUDFLARE_API_TOKEN` | `deploy.yml`       | Same token you use locally with `wrangler`   |
+| `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml`     | Your Cloudflare account ID                   |
+| `HHAPI_API_KEY`       | `acceptance.yml`   | The same key clients pass on `?key=`         |
+| `HHAPI_BASE_URL`      | `acceptance.yml` (optional) | Override the URL the probe runs against (defaults to `https://hhapi.propspress.com`) |
+
+The data-refresh pipeline (`./refresh.sh all`) is **not** wired into Actions:
+it downloads ~50 GB and runs for hours, which doesn't fit GitHub's default
+runner disk/budget. Run it on your own machine or a self-hosted runner; the
+spec recommends a monthly cadence.
+
 ## License
 
 By contributing you agree your contributions are licensed under

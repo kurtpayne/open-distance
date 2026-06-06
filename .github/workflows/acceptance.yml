@@ -1,0 +1,23 @@
+name: Acceptance
+
+on:
+  workflow_run:
+    workflows: ["Deploy"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to probe (defaults to the production hostname)'
+        required: false
+
+jobs:
+  acceptance:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run acceptance probes
+        env:
+          HHAPI_API_KEY: ${{ secrets.HHAPI_API_KEY }}
+          HHAPI_BASE: ${{ github.event.inputs.base_url || secrets.HHAPI_BASE_URL || 'https://hhapi.propspress.com' }}
+        run: bash scripts/acceptance_us.sh
