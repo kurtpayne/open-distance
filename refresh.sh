@@ -6,13 +6,14 @@
 # resumable on failure. Each subcommand is a stage of the pipeline:
 #
 #   refresh.sh setup                 ensure venv + deps + dirs
-#   refresh.sh fetch [STATES...]     download OSM/NAD/TIGER sources
-#   refresh.sh tiles [STATES...]     per-state L0 tile build
-#   refresh.sh overlay               L1 highway overlay (US-wide)
-#   refresh.sh addresses [STATES...] per-state NAD+TIGER -> CSV
-#   refresh.sh upload-r2             push tiles + overlay to R2
-#   refresh.sh load-d1 [STATES...]   push address shards to D1
-#   refresh.sh publish               atomic version flip in KV manifest
+#   refresh.sh bootstrap             one-time CF resource provisioning
+#                                    (R2 bucket, KV ns, 49 D1 shards, API_KEY secret)
+#   refresh.sh fetch [STATES...]     download OSM PBFs + NAD + OpenAddresses
+#   refresh.sh tiles [STATES...]     per-state L0 tile build (CSR binaries)
+#   refresh.sh addresses [STATES...] NAD + OA + OSM -> merged per-state CSVs
+#   refresh.sh upload-r2             push tiles to R2 (parallel)
+#   refresh.sh load-d1 [STATES...]   push address shards to D1 (parallel HTTP)
+#   refresh.sh publish               write manifest to KV (atomic version)
 #   refresh.sh all [STATES...]       all stages in order (default: every state)
 #
 # STATES are 2-letter USPS codes (CA, TX, NY). Default = all 48 + DC.
@@ -91,6 +92,27 @@ ensure_venv() {
 
 stage_setup() { ensure_venv; }
 
+stage_bootstrap() {
+  ensure_venv; load_env
+  log "bootstrap: provisioning CF resources (idempotent)"
+  # R2 + legacy D1 + KV (skips if already exists)
+  bash "$ROOT/scripts/provision.sh" 2>&1 | tee -a "$LOG_DIR/bootstrap.log" || true
+  # Per-state D1 shards
+  bash "$ROOT/scripts/provision_d1_shards.sh" 2>&1 | tee -a "$LOG_DIR/bootstrap.log"
+  # Append shard bindings to wrangler.toml (skip if already present)
+  if ! grep -q "GEOCODE_CA" "$ROOT/wrangler.toml"; then
+    log "bootstrap: appending shard bindings to wrangler.toml"
+    cat "$ROOT/data/v2/d1_bindings.toml" >> "$ROOT/wrangler.toml"
+  fi
+  if [[ -n "${HHAPI_API_KEY:-}" ]]; then
+    log "bootstrap: setting API_KEY worker secret"
+    printf '%s' "$HHAPI_API_KEY" | wrangler secret put API_KEY >/dev/null 2>&1 || true
+  else
+    log "bootstrap: HHAPI_API_KEY not in env; skip secret. Set with: wrangler secret put API_KEY"
+  fi
+  log "bootstrap: done"
+}
+
 stage_fetch() {
   ensure_venv
   local states; states=$(resolve_states "$@")
@@ -111,10 +133,10 @@ stage_tiles() {
 }
 
 stage_overlay() {
-  ensure_venv
-  local v; v=$(read_version)
-  log "overlay ($v)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_overlay --version "$v" 2>&1 | tee -a "$LOG_DIR/overlay.log"
+  # TODO: L1 highway overlay (milepost spec Phase 2). L0-only routes today work
+  # everywhere; long-haul cross-country routes are slower than they need to be
+  # without an overlay. Not on the v2-ship critical path.
+  log "overlay: skipped (L0-only ship; L1 is future work)"
 }
 
 stage_addresses() {
@@ -171,7 +193,6 @@ stage_all() {
   stage_setup
   stage_fetch     $states
   stage_tiles     $states
-  stage_overlay
   stage_addresses $states
   stage_upload_r2
   stage_load_d1   $states
@@ -185,6 +206,7 @@ stage_all() {
 cmd="${1:-help}"; shift || true
 case "$cmd" in
   setup)      stage_setup ;;
+  bootstrap)  stage_bootstrap ;;
   fetch)      stage_fetch "$@" ;;
   tiles)      stage_tiles "$@" ;;
   overlay)    stage_overlay ;;
