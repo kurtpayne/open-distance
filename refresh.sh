@@ -80,10 +80,10 @@ ensure_venv() {
     log "creating venv"
     python3 -m venv "$VENV"
   fi
-  if ! "$VENV/bin/python3" -c "import osmium, numpy, requests, aiohttp" >/dev/null 2>&1; then
+  if ! "$VENV/bin/python3" -c "import osmium, numpy, requests, aiohttp, fiona" >/dev/null 2>&1; then
     log "installing python deps"
     "$VENV/bin/python3" -m pip install --upgrade pip --quiet >/dev/null
-    "$VENV/bin/python3" -m pip install --quiet osmium numpy requests aiohttp
+    "$VENV/bin/python3" -m pip install --quiet osmium numpy requests aiohttp fiona
   fi
   command -v osmium >/dev/null 2>&1 || die "osmium CLI missing (brew install osmium-tool)"
   command -v wrangler >/dev/null 2>&1 || die "wrangler missing (npm i -g wrangler)"
@@ -122,7 +122,7 @@ stage_fetch() {
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_nad 2>&1 | tee -a "$LOG_DIR/fetch.log"
   log "fetch: OpenAddresses (US, per-source)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_oa --states $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
-  log "fetch: TIGER EDGES+ADDR (per county)"
+  log "fetch: TIGER edges-geodatabase (per state)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_tiger $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
 }
 
