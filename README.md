@@ -1,14 +1,18 @@
-# hhapi
+# open-distance
 
 A serverless distance/duration API on Cloudflare's edge, response-compatible
 with Google's legacy Distance Matrix API. Built as a cheap, fork-and-deploy
 alternative to commercial mapping APIs — runs for **~$5–10/month** on
 Cloudflare for the entire continental US.
 
+Live at **https://open-distance.com** (also reachable at
+`https://hhapi.propspress.com` during the rebrand). Worker binary still
+named `hhapi` internally for Cloudflare resource compatibility.
+
 [License: Apache 2.0](LICENSE) · [Data attribution: NOTICE.md](NOTICE.md) ·
 [Contributing](CONTRIBUTING.md)
 
-- Hostname: `https://hhapi.propspress.com`
+- Hostname: `https://open-distance.com` (and `https://hhapi.propspress.com`)
 - Auth: `key=` query param (Google-style)
 - Coverage: continental US (lower 48 + DC)
 - Endpoints:

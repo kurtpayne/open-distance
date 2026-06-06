@@ -19,5 +19,5 @@ jobs:
       - name: Run acceptance probes
         env:
           HHAPI_API_KEY: ${{ secrets.HHAPI_API_KEY }}
-          HHAPI_BASE: ${{ github.event.inputs.base_url || secrets.HHAPI_BASE_URL || 'https://hhapi.propspress.com' }}
+          HHAPI_BASE: ${{ github.event.inputs.base_url || secrets.HHAPI_BASE_URL || 'https://open-distance.com' }}
         run: bash scripts/acceptance_us.sh

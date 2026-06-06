@@ -14,6 +14,8 @@ bucket_name = "hhapi-graph"
 binding = "CACHE"
 id = "__KV_CACHE_ID__"
 
+# Add a [[routes]] block per domain you want the Worker to serve.
+# The Hostname must be a zone in your CF account.
 [[routes]]
 pattern = "__CUSTOM_DOMAIN__"
 custom_domain = true
