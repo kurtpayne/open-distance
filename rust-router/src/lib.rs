@@ -379,7 +379,13 @@ impl<'a> L1View<'a> {
 
     /// Snap a (lat, lon) to the nearest L1 node via the spatial grid. Expands
     /// outward up to `max_radius` cells. Returns (node_id, dist_m) or None.
-    pub fn snap(&self, lat: f32, lon: f32, max_radius: i32) -> Option<(u32, f32)> {
+    ///
+    /// `require_outgoing`: only return nodes with at least one outgoing edge.
+    /// The L1 build emits only forward edges for oneway ways (most US
+    /// motorways are `oneway=yes` because each carriageway is a separate
+    /// OSM way), so the "last node" of each way has out-degree 0. A* from
+    /// such a node settles 1 and gives up. We prefer interior nodes.
+    pub fn snap(&self, lat: f32, lon: f32, max_radius: i32, require_outgoing: bool) -> Option<(u32, f32)> {
         if self.n_nodes == 0 { return None; }
         let cy0 = ((lat - self.grid_min_lat) / self.grid_cell_deg).floor() as i32;
         let cx0 = ((lon - self.grid_min_lon) / self.grid_cell_deg).floor() as i32;
@@ -396,6 +402,10 @@ impl<'a> L1View<'a> {
                     let (s, e) = self.grid_range(cell);
                     for i in s..e {
                         let node = self.grid_node(i);
+                        if require_outgoing {
+                            let (es, ee) = self.edge_range(node);
+                            if ee == es { continue; }
+                        }
                         let d = haversine_m(lat, lon, self.lat(node), self.lon(node));
                         if best.map_or(true, |(_, bd)| d < bd) {
                             best = Some((node, d));
@@ -516,7 +526,9 @@ pub unsafe extern "C" fn od_l1_route(
     let Some(l1) = L1View::decode(&args[24..24 + l1_len]) else { return 0; };
 
     let out = std::slice::from_raw_parts_mut(result_ptr, 28);
-    let Some((src_node, src_d)) = l1.snap(src_lat, src_lon, 10) else {
+    // Snap src to a node with at least one outgoing edge; snap dst without
+    // that constraint (we just need to be able to REACH it on the forward A*).
+    let Some((src_node, src_d)) = l1.snap(src_lat, src_lon, 10, true) else {
         out[0..4].copy_from_slice(&f32::NAN.to_le_bytes());
         out[4..8].copy_from_slice(&f32::NAN.to_le_bytes());
         out[8..12].copy_from_slice(&0u32.to_le_bytes());
@@ -526,7 +538,7 @@ pub unsafe extern "C" fn od_l1_route(
         out[24..28].copy_from_slice(&f32::NAN.to_le_bytes());
         return 1;
     };
-    let Some((dst_node, dst_d)) = l1.snap(dst_lat, dst_lon, 10) else {
+    let Some((dst_node, dst_d)) = l1.snap(dst_lat, dst_lon, 10, false) else {
         out[0..4].copy_from_slice(&f32::NAN.to_le_bytes());
         out[4..8].copy_from_slice(&f32::NAN.to_le_bytes());
         out[8..12].copy_from_slice(&0u32.to_le_bytes());
