@@ -28,8 +28,8 @@ from pathlib import Path
 
 import aiohttp
 
-from etl.v2.config import DATA
-from etl.v2.states import BY_CODE
+from etl.config import DATA
+from etl.states import BY_CODE
 
 
 ROWS_PER_INSERT = 250

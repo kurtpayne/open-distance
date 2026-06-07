@@ -3,9 +3,9 @@ import {
   handleDistanceMatrix as v2Handle,
   healthCheck as v2Health,
   handleCoverage as v2Coverage,
-} from "./v2/distancematrix";
-import { renderIndex, renderDocs, renderPrivacy, renderAttribution, htmlHeaders } from "./v2/site";
-import { checkRateLimit, rateLimitHeaders, rateLimitResponse, readLimitsFromEnv } from "./v2/ratelimit";
+} from "./distancematrix";
+import { renderIndex, renderDocs, renderPrivacy, renderAttribution, htmlHeaders } from "./site";
+import { checkRateLimit, rateLimitHeaders, rateLimitResponse, readLimitsFromEnv } from "./ratelimit";
 
 type Env = V2Env;
 
@@ -63,7 +63,7 @@ export default {
       // and the result so a deploy can be verified without touching the
       // production routing path. See rust-router/src/lib.rs.
       const { loadWasmRouter, astarIntraTile, isLoaded } =
-        await import("./v2/wasm_router");
+        await import("./wasm_router");
       const wasmMod = (await import("../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
       const t0 = Date.now();
       if (!isLoaded()) await loadWasmRouter(wasmMod);
@@ -94,7 +94,7 @@ export default {
         return new Response(JSON.stringify({ ok: false, reason: "usage: /healthz/wasm/l1?o=lat,lon&d=lat,lon" }),
           { status: 400, headers: { "content-type": "application/json" } });
       }
-      const { loadWasmRouter, l1Route, isLoaded } = await import("./v2/wasm_router");
+      const { loadWasmRouter, l1Route, isLoaded } = await import("./wasm_router");
       const wasmMod = (await import("../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
       const tFetch0 = Date.now();
       const obj = await env.GRAPH.get(`overlay/${env.DATA_VERSION}/l1.bin`);
@@ -128,8 +128,8 @@ export default {
         return new Response(JSON.stringify({ ok: false, reason: "usage: /healthz/wasm/route?o=lat,lon&d=lat,lon" }),
           { status: 400, headers: { "content-type": "application/json" } });
       }
-      const { snapK, packTileId, getTileBytes } = await import("./v2/tiles");
-      const { loadWasmRouter, astarMultiTile, isLoaded } = await import("./v2/wasm_router");
+      const { snapK, packTileId, getTileBytes } = await import("./tiles");
+      const { loadWasmRouter, astarMultiTile, isLoaded } = await import("./wasm_router");
       const wasmMod = (await import("../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
 
       const tLoad0 = Date.now();

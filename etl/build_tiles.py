@@ -32,11 +32,11 @@ from pathlib import Path
 
 import numpy as np
 
-from etl.v2.config import (
+from etl.config import (
     DEFAULT_SPEED_KMH, DRIVABLE_HIGHWAY, SPEED_KMH, state_dir, tile_id, tiles_dir,
 )
-from etl.v2.states import BY_CODE
-from etl.v2._tile_io import TileBuild, pack_tile_id, write_tile
+from etl.states import BY_CODE
+from etl._tile_io import TileBuild, pack_tile_id, write_tile
 
 
 def log(msg: str) -> None:

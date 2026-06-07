@@ -39,7 +39,7 @@ echo "$MANIFEST" | wrangler kv key put --namespace-id "$KV_ID" --remote "manifes
 # Publish the per-source OpenAddresses attribution manifest so the Worker can
 # serve it at /attribution/openaddresses.json. Required by OA's redistribution
 # terms (downstream consumers must surface the originating authority for each
-# source). Written by etl/v2/fetch_oa.py during the fetch stage.
+# source). Written by etl/fetch_oa.py during the fetch stage.
 OA_ATTR="$ROOT/data/v2/oa/attribution.json"
 if [[ -f "$OA_ATTR" ]]; then
   wrangler kv key put --namespace-id "$KV_ID" --remote "attribution:openaddresses" --path "$OA_ATTR" >/dev/null 2>&1 \

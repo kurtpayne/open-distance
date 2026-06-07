@@ -16,8 +16,8 @@ import sys
 import zipfile
 from pathlib import Path
 
-from etl.v2.config import DATA, addresses_csv
-from etl.v2.states import BY_CODE
+from etl.config import DATA, addresses_csv
+from etl.states import BY_CODE
 
 
 def nad_csv(version: str, state_code: str):

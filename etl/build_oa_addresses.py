@@ -18,8 +18,8 @@ import json
 import sys
 from pathlib import Path
 
-from etl.v2.config import DATA
-from etl.v2.states import BY_CODE
+from etl.config import DATA
+from etl.states import BY_CODE
 
 
 SUFFIX_ABBR = {

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import requests
 
-from etl.v2.config import DATA
+from etl.config import DATA
 
 
 NAD_URL = "https://data.transportation.gov/download/fc2s-wawr/application/x-zip-compressed"

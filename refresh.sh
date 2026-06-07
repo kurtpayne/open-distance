@@ -85,7 +85,7 @@ write_version() {
 # ---------------------------------------------------------------------------
 all_states() {
   ensure_venv >/dev/null
-  "$VENV/bin/python3" -c "from etl.v2.states import STATES; print(' '.join(s.code for s in STATES))"
+  "$VENV/bin/python3" -c "from etl.states import STATES; print(' '.join(s.code for s in STATES))"
 }
 resolve_states() {
   if [[ $# -eq 0 ]]; then all_states; else echo "$*"; fi
@@ -136,13 +136,13 @@ stage_fetch() {
   ensure_venv
   local states; states=$(resolve_states "$@")
   log "fetch: OSM PBFs ($states)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_sources $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.fetch_sources $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
   log "fetch: NAD (national)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_nad 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.fetch_nad 2>&1 | tee -a "$LOG_DIR/fetch.log"
   log "fetch: OpenAddresses (US, per-source)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_oa --states $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.fetch_oa --states $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
   log "fetch: TIGER edges-geodatabase (per state)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_tiger $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.fetch_tiger $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
 }
 
 stage_oa_attribution() {
@@ -155,7 +155,7 @@ stage_oa_attribution() {
   # the Worker at /attribution/openaddresses.json).
   ensure_venv
   log "oa-attribution: refreshing per-source OA manifest"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_oa --metadata-only 2>&1 \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.fetch_oa --metadata-only 2>&1 \
     | tee -a "$LOG_DIR/oa-attribution.log"
 }
 
@@ -164,13 +164,13 @@ stage_tiles() {
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
   log "tiles ($v): $states"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_tiles --version "$v" $states 2>&1 | tee -a "$LOG_DIR/tiles.log"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_tiles --version "$v" $states 2>&1 | tee -a "$LOG_DIR/tiles.log"
 }
 
 stage_overlay() {
   # TODO: L1 highway overlay. L0-only routes work everywhere today, but
   # long-haul cross-country routes are slower than they need to be without
-  # an overlay. L1 build is in etl/v2/build_overlay.py; this stage will
+  # an overlay. L1 build is in etl/build_overlay.py; this stage will
   # invoke it once it's wired into refresh-time.
   log "overlay: skipped (L0-only ship; L1 is future work)"
 }
@@ -185,19 +185,19 @@ stage_addresses() {
     return 1
   fi
   log "addresses ($v): NAD national slice -> per-state .nad.csv ($states)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_nad_addresses \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_nad_addresses \
     --version "$v" --zip "$nad_zip" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
   log "addresses ($v): OA per-source -> per-state .oa.csv ($states)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_oa_addresses \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_oa_addresses \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
   log "addresses ($v): OSM addr-tagged nodes -> per-state .osm.csv ($states)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_addresses \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_addresses \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
   log "addresses ($v): merge -> per-state .csv (NAD > OA > OSM)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.merge_addresses \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.merge_addresses \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
   log "addresses ($v): TIGER segments -> per-state segments.csv ($states)"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.build_tiger_segments \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_tiger_segments \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
 }
 
@@ -205,7 +205,7 @@ stage_upload_r2() {
   ensure_venv; load_env
   local v; v=$(read_version)
   log "upload-r2 ($v): parallel uploader"
-  bash "$ROOT/etl/v2/upload_tiles_parallel.sh" "$v" 16 2>&1 | tee -a "$LOG_DIR/upload-r2.log"
+  bash "$ROOT/etl/upload_tiles_parallel.sh" "$v" 16 2>&1 | tee -a "$LOG_DIR/upload-r2.log"
 }
 
 stage_load_d1() {
@@ -213,10 +213,10 @@ stage_load_d1() {
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
   log "load-d1 ($v): addresses (parallel HTTP), states=$states"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_parallel \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.load_d1_parallel \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
   log "load-d1 ($v): TIGER segments, states=$states"
-  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_segments \
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.load_d1_segments \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
 }
 
@@ -224,7 +224,7 @@ stage_publish() {
   load_env
   local v; v=$(read_version)
   log "publish ($v): bumping KV manifest"
-  bash "$ROOT/etl/v2/publish_manifest.sh" "$v" 2>&1 | tee -a "$LOG_DIR/publish.log"
+  bash "$ROOT/etl/publish_manifest.sh" "$v" 2>&1 | tee -a "$LOG_DIR/publish.log"
 }
 
 stage_all() {

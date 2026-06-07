@@ -41,7 +41,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from etl.v2.config import CELL_DEG, TILE_FORMAT_VERSION, tile_bbox
+from etl.config import CELL_DEG, TILE_FORMAT_VERSION, tile_bbox
 
 
 MAGIC = b"HHT0"

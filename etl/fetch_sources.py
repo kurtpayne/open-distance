@@ -15,8 +15,8 @@ from pathlib import Path
 
 import requests
 
-from etl.v2.config import geofabrik_url, state_dir
-from etl.v2.states import BY_CODE
+from etl.config import geofabrik_url, state_dir
+from etl.states import BY_CODE
 
 
 # Minimum sane PBF size (anything smaller is a failed download).

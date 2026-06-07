@@ -17,8 +17,8 @@ import csv
 import sys
 from pathlib import Path
 
-from etl.v2.config import addresses_csv
-from etl.v2.states import BY_CODE
+from etl.config import addresses_csv
+from etl.states import BY_CODE
 
 
 def log(msg: str) -> None:

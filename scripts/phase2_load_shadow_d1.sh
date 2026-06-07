@@ -28,12 +28,12 @@ VENV="$ROOT/.venv"
 [[ -x "$VENV/bin/python3" ]] || { echo "ERROR: venv missing -- ./refresh.sh setup" >&2; exit 1; }
 
 echo "[phase2-load] addresses -> 49 od-geo-* shards (~80M rows, ~2h)"
-PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_parallel \
+PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.load_d1_parallel \
   --version "$VERSION" --bindings "$BINDINGS" 2>&1 \
   | tee -a "$ROOT/data/v2/logs/phase2-load-addr.log"
 
 echo "[phase2-load] segments -> 49 od-geo-* shards (~33M rows)"
-PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.load_d1_segments \
+PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.load_d1_segments \
   --version "$VERSION" --bindings "$BINDINGS" 2>&1 \
   | tee -a "$ROOT/data/v2/logs/phase2-load-segs.log"
 

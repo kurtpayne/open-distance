@@ -24,7 +24,7 @@ from pathlib import Path
 
 import requests
 
-from etl.v2.config import DATA
+from etl.config import DATA
 
 
 OA_API = "https://batch.openaddresses.io/api/data"

@@ -13,7 +13,7 @@ The HTTP API lets us batch + parallelize properly.
 Auth: reads CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID from env.
 
 Usage:
-  python3 -m etl.v2.load_d1_parallel --version 2026-06 [STATE...]
+  python3 -m etl.load_d1_parallel --version 2026-06 [STATE...]
 """
 from __future__ import annotations
 
@@ -27,8 +27,8 @@ from pathlib import Path
 
 import aiohttp
 
-from etl.v2.config import DATA, addresses_csv
-from etl.v2.states import BY_CODE
+from etl.config import DATA, addresses_csv
+from etl.states import BY_CODE
 
 
 ROWS_PER_INSERT = 250          # smaller batches: trigger overhead per row

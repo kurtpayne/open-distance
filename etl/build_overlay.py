@@ -41,10 +41,10 @@ from pathlib import Path
 
 import numpy as np
 
-from etl.v2.config import (
+from etl.config import (
     DEFAULT_SPEED_KMH, L1_HIGHWAY, SPEED_KMH, state_dir,
 )
-from etl.v2.states import BY_CODE
+from etl.states import BY_CODE
 
 
 MAGIC = b"HHL1"
@@ -152,7 +152,7 @@ def main(argv):
     ap.add_argument("states", nargs="*", help="Default: all US-48+DC")
     args = ap.parse_args(argv)
 
-    from etl.v2.config import DATA
+    from etl.config import DATA
     out_path = DATA / "out" / args.version / "l1-overlay.bin"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
