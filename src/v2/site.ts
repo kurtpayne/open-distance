@@ -2,47 +2,312 @@
 // HTML + ~50 lines of inline JS, locked down with a strict CSP.
 
 const CSS = `
-  :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-  body { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; line-height: 1.5; }
-  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; }
-  header h1 { margin: 0; font-size: 1.5rem; }
-  nav a { margin-left: 0.75rem; font-size: 0.9rem; }
-  h2 { margin-top: 2rem; }
-  h3 { margin-top: 1.25rem; }
-  p, li { color: #2b2b2b; }
-  a { color: #1f5eff; }
-  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875rem; }
-  pre { background: #f5f5f7; padding: 0.75rem 1rem; overflow-x: auto; border-radius: 0.4rem; }
-  pre code { background: none; padding: 0; }
-  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #e5e5e9; vertical-align: top; }
-  th { background: #f5f5f7; font-weight: 600; }
-  form { display: grid; gap: 0.75rem; margin: 1.25rem 0; }
-  label { display: grid; gap: 0.3rem; font-size: 0.875rem; color: #444; }
-  input[type=text] { padding: 0.55rem 0.7rem; border: 1px solid #c8c8d0; border-radius: 0.35rem; font-size: 1rem; }
-  button { padding: 0.6rem 1.2rem; background: #1f5eff; color: white; border: 0; border-radius: 0.35rem; cursor: pointer; font-size: 0.95rem; align-self: start; }
-  button:disabled { background: #888; cursor: progress; }
-  .pitch { background: #fff7e6; border-left: 4px solid #f5a623; padding: 0.75rem 1rem; margin: 1.5rem 0; border-radius: 0.3rem; }
-  .result-grid { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; margin-top: 1rem; }
+  /* Design tokens. One accent, neutral grays, system fonts. */
+  :root {
+    color-scheme: light dark;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --accent: #2952cc;
+    --accent-hover: #1f3fa3;
+    --accent-soft: #eef2ff;
+    --bg: #ffffff;
+    --bg-soft: #f7f7f9;
+    --bg-code: #f4f5f7;
+    --fg: #18181b;
+    --fg-muted: #52525b;
+    --fg-faint: #71717a;
+    --border: #e5e7eb;
+    --border-strong: #d4d4d8;
+    --pitch-bg: #fffbeb;
+    --pitch-bd: #f5a623;
+    --pitch-fg: #503a10;
+    --radius: 0.5rem;
+    --radius-sm: 0.35rem;
+    --shadow-sm: 0 1px 2px rgba(15, 15, 20, 0.04), 0 1px 1px rgba(15, 15, 20, 0.03);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: var(--font-sans);
+    max-width: 76ch;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Header / nav. Calm, not loud. */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    padding-bottom: 1.25rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header h1 a { color: inherit; text-decoration: none; }
+  header h1 a:hover { color: var(--accent); }
+  nav { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  nav a {
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+    text-decoration: none;
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--radius-sm);
+    transition: background-color .15s, color .15s;
+  }
+  nav a:hover { color: var(--fg); background: var(--bg-soft); }
+
+  /* Typographic scale. */
+  h1, h2, h3, h4 { color: var(--fg); letter-spacing: -0.015em; line-height: 1.25; }
+  h2 { margin: 3rem 0 0.75rem; font-size: 1.5rem; font-weight: 600; }
+  h2:first-child { margin-top: 0; }
+  h3 { margin: 2rem 0 0.5rem; font-size: 1.125rem; font-weight: 600; }
+  h4 { margin: 1.5rem 0 0.5rem; font-size: 1rem; font-weight: 600; color: var(--fg-muted); }
+  p { margin: 0.75rem 0; }
+  ul, ol { padding-left: 1.25rem; margin: 0.75rem 0; }
+  li { margin: 0.25rem 0; }
+  p, li { color: var(--fg); }
+  strong { font-weight: 600; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:hover { color: var(--accent-hover); }
+
+  /* Code & pre. Tasteful, monospace, easy to read. */
+  code, pre, kbd, samp { font-family: var(--font-mono); font-size: 0.875em; }
+  :not(pre) > code {
+    background: var(--bg-code);
+    color: var(--fg);
+    padding: 0.1em 0.35em;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border);
+    font-size: 0.85em;
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    border-radius: var(--radius);
+    margin: 1rem 0;
+    line-height: 1.5;
+    font-size: 0.85rem;
+  }
+  pre code { background: none; padding: 0; border: 0; font-size: 1em; }
+
+  /* Tables. Striped softly; not a wall of cells. */
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.925rem; }
+  th, td { text-align: left; padding: 0.6rem 0.75rem; vertical-align: top; }
+  thead th {
+    font-weight: 600;
+    color: var(--fg-muted);
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border-strong);
+    background: transparent;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr:nth-child(even) { background: var(--bg-soft); }
+  tbody th {
+    font-weight: 600;
+    color: var(--fg);
+    background: transparent;
+  }
+
+  /* Comparison table: sticky first column, horizontal scroll on small screens. */
+  .cmp-wrap {
+    margin: 1rem 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-x: auto;
+    background: var(--bg);
+  }
+  table.cmp { margin: 0; font-size: 0.875rem; min-width: 38rem; }
+  table.cmp thead th { padding: 0.75rem; background: var(--bg-soft); }
+  table.cmp tbody th {
+    position: sticky;
+    left: 0;
+    background: var(--bg);
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 1;
+    box-shadow: 1px 0 0 var(--border);
+  }
+  table.cmp tbody tr:nth-child(even) th { background: var(--bg-soft); }
+  table.cmp td { white-space: normal; }
+
+  /* Hero pitch block. Warm but restrained. */
+  .pitch {
+    background: var(--pitch-bg);
+    border: 1px solid #f5d97a;
+    border-left: 4px solid var(--pitch-bd);
+    padding: 1rem 1.25rem;
+    margin: 0 0 2rem;
+    border-radius: var(--radius);
+    color: var(--pitch-fg);
+  }
+  .pitch p { margin: 0.5rem 0; color: inherit; }
+  .pitch p:first-child { margin-top: 0; }
+  .pitch p:last-child { margin-bottom: 0; }
+  .pitch code {
+    background: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.08);
+    color: inherit;
+  }
+
+  /* Try-it form. Card-shaped, generous spacing. */
+  .try-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    padding: 1.25rem 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .try-card h2 { margin-top: 0; }
+  form { display: grid; gap: 1rem; margin: 0; }
+  label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  label small { color: var(--fg-faint); font-weight: 400; font-size: 0.8125rem; }
+  input[type=text], select {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--bg);
+    color: var(--fg);
+    width: 100%;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input[type=text]:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(41, 82, 204, 0.15);
+  }
+  button {
+    padding: 0.6rem 1.25rem;
+    background: var(--accent);
+    color: white;
+    border: 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    font-family: inherit;
+    align-self: start;
+    transition: background-color .15s;
+  }
+  button:hover:not(:disabled) { background: var(--accent-hover); }
+  button:disabled { background: #a1a1aa; cursor: progress; }
+
+  /* Result panel + side-by-side reference cards. */
+  #out:not(:empty) {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  #out h3 { margin-top: 1rem; font-size: 1rem; }
+  .result-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr 1fr;
+    margin-top: 1.5rem;
+  }
   @media (max-width: 640px) { .result-grid { grid-template-columns: 1fr; } }
-  .result-block h3 { margin-top: 0; }
-  .pill { display: inline-block; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 99px; background: #f5f5f7; color: #444; margin-left: 0.4rem; font-weight: 500; }
-  .pill-rooftop { background: #d1fae5; color: #065f46; }
-  .pill-interp { background: #fef3c7; color: #92400e; }
-  .pill-coords { background: #e0e7ff; color: #3730a3; }
-  .pill-fail { background: #fee2e2; color: #991b1b; }
-  table.cmp { font-size: 0.85rem; display: block; overflow-x: auto; }
-  table.cmp th:first-child, table.cmp tbody th { font-weight: 600; background: #f5f5f7; white-space: nowrap; }
-  footer { color: #777; font-size: 0.8rem; margin-top: 3rem; border-top: 1px solid #e5e5e9; padding-top: 1rem; }
+  .result-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem 1.1rem;
+  }
+  .result-block h3 { margin-top: 0; font-size: 0.9375rem; color: var(--fg-muted); }
+  .result-block pre { margin: 0.5rem 0 0; max-height: 18rem; }
+  .result-block p { font-size: 0.9rem; color: var(--fg-muted); }
+
+  /* Pills (confidence indicators). */
+  .pill {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 99px;
+    background: var(--bg-soft);
+    color: var(--fg-muted);
+    margin-left: 0.4rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    vertical-align: 1px;
+    border: 1px solid var(--border);
+  }
+  .pill-rooftop { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+  .pill-interp  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .pill-coords  { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+  .pill-fail    { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+
+  /* Footer. */
+  footer {
+    color: var(--fg-faint);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    margin-top: 4rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1.5rem;
+  }
+  footer p { margin: 0 0 0.75rem; color: inherit; }
+  footer a { color: var(--fg-muted); }
+  footer a:hover { color: var(--accent); }
+  footer .yoke { margin-top: 1rem; display: inline-block; }
+  footer .yoke img { display: block; }
+
+  /* Dark mode. */
   @media (prefers-color-scheme: dark) {
-    body { background: #0f0f10; color: #eaeaee; }
-    p, li, label { color: #d4d4d8; }
-    pre, th { background: #1a1a1d; }
-    th, td { border-bottom-color: #2a2a2d; }
-    input[type=text] { background: #1a1a1d; color: #eaeaee; border-color: #38383d; }
-    .pill { background: #1a1a1d; color: #d4d4d8; }
-    .pitch { background: #2a2410; border-left-color: #f5a623; color: #f0e3c0; }
-    a { color: #6e9bff; }
+    :root {
+      --accent: #93b4ff;
+      --accent-hover: #b3c8ff;
+      --accent-soft: #1c2440;
+      --bg: #0f0f12;
+      --bg-soft: #18181c;
+      --bg-code: #16161a;
+      --fg: #ececf1;
+      --fg-muted: #b4b4be;
+      --fg-faint: #8a8a93;
+      --border: #27272d;
+      --border-strong: #3a3a42;
+      --pitch-bg: #251e0e;
+      --pitch-bd: #f5a623;
+      --pitch-fg: #f0e3c0;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+    }
+    .pitch { border-color: #4a3a14; }
+    .pitch code { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+    button { color: #0f0f12; }
+    button:disabled { background: #52525b; color: #d4d4d8; }
+    input[type=text]:focus, select:focus { box-shadow: 0 0 0 3px rgba(147, 180, 255, 0.2); }
+    .pill-rooftop { background: #064e3b; color: #a7f3d0; border-color: #065f46; }
+    .pill-interp  { background: #4a3209; color: #fde68a; border-color: #78350f; }
+    .pill-coords  { background: #1e1b4b; color: #c7d2fe; border-color: #312e81; }
+    .pill-fail    { background: #4c1414; color: #fecaca; border-color: #7f1d1d; }
   }
 `;
 
@@ -182,7 +447,7 @@ function shell(title: string, body: string, extraHead = "", path = "/"): string 
 ${extraHead}
 </head><body>
 <header>
-  <h1><a href="/" style="color:inherit;text-decoration:none;">open-distance</a></h1>
+  <h1><a href="/">open-distance</a></h1>
   <nav>
     <a href="/">Try it</a>
     <a href="/docs">API</a>
@@ -191,75 +456,82 @@ ${extraHead}
     <a href="https://github.com/kurtpayne/open-distance">GitHub</a>
   </nav>
 </header>
+<main>
 ${body}
+</main>
 <footer>
-  open-distance is an open-source serverless distance/duration API. Run it
-  yourself for ~$5/month on Cloudflare; this hosted instance is free, no
-  registration, no API key. Apache 2.0 licensed.
-  Data: OpenStreetMap (ODbL), U.S. NAD &amp; TIGER (public domain),
-  OpenAddresses (per-source attribution). See
-  <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE.md">NOTICE</a>.
-  <br><br>
-  <strong>Provided as-is, no warranty.</strong> Built from public open data; no
-  live traffic; coverage and accuracy vary. If your application is safety- or
-  contract-critical (emergency dispatch, regulated SLAs, legal billing), use a
-  commercial API like Google Maps Distance Matrix. See the
-  <a href="https://github.com/kurtpayne/open-distance/blob/main/LICENSE">LICENSE</a>
-  for the full warranty disclaimer.
-  <br><br>
-  <a href="https://yoke.lol/open-distance.com"><img src="https://yoke.lol/badge/open-distance.com.svg" alt="Yoke score for open-distance.com"></a>
+  <p>
+    open-distance is an open-source serverless distance/duration API. Run it
+    yourself for ~$5/month on Cloudflare; this hosted instance is free, no
+    registration, no API key. Apache 2.0 licensed.
+    Data: OpenStreetMap (ODbL), U.S. NAD &amp; TIGER (public domain),
+    OpenAddresses (per-source attribution). See
+    <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE.md">NOTICE</a>.
+  </p>
+  <p>
+    <strong>Provided as-is, no warranty.</strong> Built from public open data;
+    no live traffic; coverage and accuracy vary. If your application is safety-
+    or contract-critical (emergency dispatch, regulated SLAs, legal billing),
+    use a commercial API like Google Maps Distance Matrix. See the
+    <a href="https://github.com/kurtpayne/open-distance/blob/main/LICENSE">LICENSE</a>
+    for the full warranty disclaimer.
+  </p>
+  <a class="yoke" href="https://yoke.lol/open-distance.com"><img src="https://yoke.lol/badge/open-distance.com.svg" alt="Yoke score for open-distance.com"></a>
 </footer>
 </body></html>`;
 }
 
 export function renderIndex(): string {
   const body = `
-<p class="pitch">
-  <strong>Commercial APIs are excellent — they're the gold standard for live
+<div class="pitch">
+  <p><strong>Commercial APIs are excellent — they're the gold standard for live
   traffic, rendered maps, and the long tail of edge cases.</strong>
-  open-distance doesn't try to compete on quality. It's just free.<br><br>
-  Use it as your first layer: try our distance matrix first, cache the result.
+  open-distance doesn't try to compete on quality. It's just free.</p>
+  <p>Use it as your first layer: try our distance matrix first, cache the result.
   If the per-endpoint confidence (<code>rooftop</code> /
   <code>interpolated</code>) is good enough for your use case, you're done.
   If you need traffic-aware routing or the geocode came back low-confidence,
   fall back to a paid API for those queries only. Most applications need the
-  premium answer for less than 100% of their requests.
-</p>
+  premium answer for less than 100% of their requests.</p>
+</div>
 
-<form id="try-form" autocomplete="off">
-  <label>Origins
-    <input type="text" name="origins" placeholder="1 market st, san francisco, ca | 37.7749,-122.4194" required>
-    <small>Free-form: addresses, ZIPs, or <code>lat,lng</code> pairs. Multiple separated by <code>|</code>.</small>
-  </label>
-  <label>Destinations
-    <input type="text" name="destinations" placeholder="2280 market st, san francisco, ca | 37.4419,-122.143" required>
-  </label>
-  <label>Units
-    <select name="units">
-      <option value="imperial" selected>imperial (mi / mins)</option>
-      <option value="metric">metric (km / mins)</option>
-    </select>
-  </label>
-  <button id="submit-btn" type="submit">Calculate</button>
-</form>
+<section class="try-card" aria-labelledby="try-it">
+  <h2 id="try-it">Try it</h2>
+  <form id="try-form" autocomplete="off">
+    <label>Origins
+      <input type="text" name="origins" placeholder="1 market st, san francisco, ca | 37.7749,-122.4194" required>
+      <small>Free-form: addresses, ZIPs, or <code>lat,lng</code> pairs. Multiple separated by <code>|</code>.</small>
+    </label>
+    <label>Destinations
+      <input type="text" name="destinations" placeholder="2280 market st, san francisco, ca | 37.4419,-122.143" required>
+    </label>
+    <label>Units
+      <select name="units">
+        <option value="imperial" selected>imperial (mi / mins)</option>
+        <option value="metric">metric (km / mins)</option>
+      </select>
+    </label>
+    <button id="submit-btn" type="submit">Calculate</button>
+  </form>
 
-<div id="out"></div>
-<div class="result-grid">
-  <div class="result-block">
-    <h3>Raw JSON response</h3>
-    <pre><code id="raw">(submit to see)</code></pre>
-  </div>
-  <div class="result-block">
-    <h3>How to call from your code</h3>
+  <div id="out"></div>
+  <div class="result-grid">
+    <div class="result-block">
+      <h3>Raw JSON response</h3>
+      <pre><code id="raw">(submit to see)</code></pre>
+    </div>
+    <div class="result-block">
+      <h3>How to call from your code</h3>
 <pre><code>GET https://open-distance.com/maps/api/distancematrix/json
     ?origins=A|B
     &amp;destinations=C|D
     &amp;units=imperial</code></pre>
-    <p>Response is byte-compatible with Google's legacy Distance Matrix JSON,
-       plus <code>origin_matches</code> and <code>destination_matches</code>
-       arrays that surface the confidence per endpoint.</p>
+      <p>Response is byte-compatible with Google's legacy Distance Matrix JSON,
+         plus <code>origin_matches</code> and <code>destination_matches</code>
+         arrays that surface the confidence per endpoint.</p>
+    </div>
   </div>
-</div>
+</section>
 
 <h2>Why this exists</h2>
 <p>Distance and duration are useful in lots of applications that don't
@@ -342,23 +614,25 @@ export function renderIndex(): string {
    (Cloudflare's edge, serverless, no server to run). If you need full
    route geometry, turn-by-turn directions, or live traffic, one of the
    tools below is the right fit.</p>
+<div class="cmp-wrap">
 <table class="cmp">
   <thead>
-    <tr><th></th><th>OSRM</th><th>Valhalla</th><th>open-distance</th><th>Google / commercial</th></tr>
+    <tr><th scope="col"></th><th scope="col">OSRM</th><th scope="col">Valhalla</th><th scope="col">open-distance</th><th scope="col">Google / commercial</th></tr>
   </thead>
   <tbody>
-    <tr><th>Deploy model</th><td>Self-host server (VM)</td><td>Self-host server (VM)</td><td>Cloudflare Worker (edge)</td><td>SaaS</td></tr>
-    <tr><th>Cost (US-48)</th><td>~$50–200/mo VM</td><td>~$50–200/mo VM</td><td>~$5–10/mo Cloudflare</td><td>Per-call ($)</td></tr>
-    <tr><th>Cold start</th><td>Minutes (load graph)</td><td>Seconds (tile lazy-load)</td><td>~30 ms isolate</td><td>n/a</td></tr>
-    <tr><th>Raw routing speed</th><td>Best-in-class (CH)</td><td>Good (tiled)</td><td>Good; slower cross-country before L1 overlay</td><td>Fast</td></tr>
-    <tr><th>Route geometry</th><td>Yes</td><td>Yes</td><td>No (scalar distance + duration)</td><td>Yes</td></tr>
-    <tr><th>Turn-by-turn</th><td>Yes</td><td>Yes</td><td>No</td><td>Yes</td></tr>
-    <tr><th>Live traffic</th><td>No</td><td>Plugin</td><td>No</td><td>Yes</td></tr>
-    <tr><th>Geocoder</th><td>BYO (Nominatim)</td><td>BYO</td><td>Built-in (NAD + OA + OSM + TIGER)</td><td>Built-in</td></tr>
-    <tr><th>API shape</th><td>OSRM JSON</td><td>Valhalla JSON</td><td>Google Distance Matrix JSON</td><td>(varies)</td></tr>
-    <tr><th>License</th><td>BSD-2</td><td>MIT</td><td>Apache 2.0</td><td>Proprietary</td></tr>
+    <tr><th scope="row">Deploy model</th><td>Self-host server (VM)</td><td>Self-host server (VM)</td><td>Cloudflare Worker (edge)</td><td>SaaS</td></tr>
+    <tr><th scope="row">Cost (US-48)</th><td>~$50–200/mo VM</td><td>~$50–200/mo VM</td><td>~$5–10/mo Cloudflare</td><td>Per-call ($)</td></tr>
+    <tr><th scope="row">Cold start</th><td>Minutes (load graph)</td><td>Seconds (tile lazy-load)</td><td>~30 ms isolate</td><td>n/a</td></tr>
+    <tr><th scope="row">Raw routing speed</th><td>Best-in-class (CH)</td><td>Good (tiled)</td><td>Good; slower cross-country before L1 overlay</td><td>Fast</td></tr>
+    <tr><th scope="row">Route geometry</th><td>Yes</td><td>Yes</td><td>No (scalar distance + duration)</td><td>Yes</td></tr>
+    <tr><th scope="row">Turn-by-turn</th><td>Yes</td><td>Yes</td><td>No</td><td>Yes</td></tr>
+    <tr><th scope="row">Live traffic</th><td>No</td><td>Plugin</td><td>No</td><td>Yes</td></tr>
+    <tr><th scope="row">Geocoder</th><td>BYO (Nominatim)</td><td>BYO</td><td>Built-in (NAD + OA + OSM + TIGER)</td><td>Built-in</td></tr>
+    <tr><th scope="row">API shape</th><td>OSRM JSON</td><td>Valhalla JSON</td><td>Google Distance Matrix JSON</td><td>(varies)</td></tr>
+    <tr><th scope="row">License</th><td>BSD-2</td><td>MIT</td><td>Apache 2.0</td><td>Proprietary</td></tr>
   </tbody>
 </table>
+</div>
 <p>Both <a href="https://project-osrm.org/" target="_blank" rel="noopener noreferrer">OSRM</a>
    and <a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener noreferrer">Valhalla</a>
    are mature, well-maintained projects with much broader feature sets than
@@ -412,7 +686,7 @@ export function renderDocs(): string {
 <p>Each endpoint comes back with a <code>match</code> value telling you how
    it was located:</p>
 <table>
-<thead><tr><th>Value</th><th>Means</th><th>Typical accuracy</th></tr></thead>
+<thead><tr><th scope="col">Value</th><th scope="col">Means</th><th scope="col">Typical accuracy</th></tr></thead>
 <tbody>
 <tr><td><code>rooftop</code></td><td>Exact mapped point (NAD or OpenAddresses rooftop dataset)</td><td>Building-level</td></tr>
 <tr><td><code>interpolated</code></td><td>OSM addr-tagged node, or TIGER segment interpolation</td><td>~30–100 m</td></tr>
@@ -445,7 +719,7 @@ export function renderDocs(): string {
    carries the following headers so you can self-throttle without a probe
    round-trip:</p>
 <table>
-<thead><tr><th>Header</th><th>What it means</th></tr></thead>
+<thead><tr><th scope="col">Header</th><th scope="col">What it means</th></tr></thead>
 <tbody>
 <tr><td><code>X-RateLimit-Limit-Second</code></td><td>Configured per-second limit (25 by default)</td></tr>
 <tr><td><code>X-RateLimit-Remaining-Second</code></td><td>Requests left in the current 1-second window</td></tr>
@@ -481,7 +755,7 @@ export function renderDocs(): string {
 
 <h2>Other endpoints</h2>
 <table>
-<thead><tr><th>Path</th><th>What it returns</th></tr></thead>
+<thead><tr><th scope="col">Path</th><th scope="col">What it returns</th></tr></thead>
 <tbody>
 <tr><td><code>/healthz</code></td><td>Liveness + sentinel-tile probe</td></tr>
 <tr><td><code>/coverage</code></td><td>Version, data sources, supported match values</td></tr>
