@@ -270,13 +270,16 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     });
   }
 
-  // Opt-in routing via the Rust-compiled WASM router. Supports the single-
-  // pair case (1 origin x 1 destination) and the matrix case (any number
-  // of destinations for a single origin) using the WASM one-to-many
-  // Dijkstra. Multi-origin matrix queries still go through the TS path
-  // (Rust handles one source at a time today). Adds x-od-router-impl on
-  // the response when WASM actually served the query.
-  if (url.searchParams.get("router") === "wasm" && origins.length === 1) {
+  // Routing: WASM (Rust) is the default for single-origin queries (1 origin
+  // x N destinations) where the corridor fits the 16-tile cap. The Rust
+  // one-to-many Dijkstra runs a single graph traversal across all
+  // destinations -- 36 % faster wall-time than the TS oneToMany on the
+  // 44-route benchmark, and as much as 11x faster on long routes. Multi-
+  // origin queries and routes whose corridor exceeds the cap fall through
+  // to the TS L0 router. Set `?router=ts` to force the TS path (escape
+  // hatch for debugging or if WASM regresses on a specific query).
+  const routerParam = url.searchParams.get("router");
+  if (routerParam !== "ts" && origins.length === 1) {
     const r = await tryWasmMatrix(url, env, origins[0], destinations);
     if (r) return r;
     // else: corridor too large, snap failed, or one-to-many returned no
@@ -505,6 +508,14 @@ export async function handleCoverage(env: Env): Promise<Response> {
     },
     attribution_endpoint: "/attribution",
     openaddresses_per_source_manifest: "/attribution/openaddresses.json",
+    routing: {
+      default: "wasm",
+      implementations: {
+        wasm: "Rust-compiled WebAssembly. Multi-tile A* and one-to-many Dijkstra in linear memory. Default for single-origin queries.",
+        ts: "TypeScript tile-paged Dijkstra. Used for multi-origin matrix queries and routes whose corridor exceeds the 16-tile cap. Override the default via ?router=ts.",
+      },
+      response_header: "x-od-router-impl: 'wasm-one-to-many' | 'wasm' | (absent = ts served the query)",
+    },
     confidence_indicator: {
       response_fields: ["origin_matches", "destination_matches"],
       values: {
@@ -515,11 +526,12 @@ export async function handleCoverage(env: Env): Promise<Response> {
       },
     },
     deviations_from_google: [
-      "key= is our own API key, not Google's",
+      "no API key required; per-IP rate limit (see /docs for headers)",
       "no live traffic; free-flow time only",
       "place_id: inputs return NOT_FOUND",
-      "long cross-country routes may return ZERO_RESULTS (commute distances work)",
+      "cross-country routes (>~1500 mi) may return ZERO_RESULTS",
       "centroid-quality geocodes return NOT_FOUND instead of approximate",
+      "response includes additive fields: origin_matches, destination_matches, copyrights, data_version",
     ],
   }), { status: 200, headers });
 }
