@@ -42,7 +42,7 @@ def list_us_address_sources() -> list[dict]:
     r = requests.get(
         OA_API,
         params={"level": "run", "country": "us", "page": 0, "limit": 10000, "fabric": "false"},
-        headers={"User-Agent": "hhapi/1.0"},
+        headers={"User-Agent": "open-distance/1.0"},
         timeout=60,
     )
     r.raise_for_status()
@@ -79,7 +79,7 @@ def download_one(run: dict, force: bool = False) -> tuple[str, str, int, bool]:
 
     # Resolve job -> s3 URL via the OA job endpoint.
     job_url = f"https://batch.openaddresses.io/api/job/{job}"
-    meta = requests.get(job_url, headers={"User-Agent": "hhapi/1.0"}, timeout=60).json()
+    meta = requests.get(job_url, headers={"User-Agent": "open-distance/1.0"}, timeout=60).json()
     s3 = meta.get("s3")
     if not s3 or not s3.startswith("s3://v2.openaddresses.io/"):
         return (state, slug, 0, False)
@@ -87,7 +87,7 @@ def download_one(run: dict, force: bool = False) -> tuple[str, str, int, bool]:
     url = "https://v2.openaddresses.io/" + s3[len("s3://v2.openaddresses.io/"):]
     tmp = out.with_suffix(out.suffix + ".part")
     with requests.get(url, stream=True, timeout=300, allow_redirects=True,
-                      headers={"User-Agent": "hhapi/1.0"}) as r:
+                      headers={"User-Agent": "open-distance/1.0"}) as r:
         r.raise_for_status()
         with open(tmp, "wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):

@@ -43,7 +43,7 @@ def download() -> Path:
 
     tmp = NAD_ZIP.with_suffix(".zip.part")
     log(f"GET {NAD_URL}")
-    with requests.get(NAD_URL, stream=True, timeout=600, headers={"User-Agent": "Mozilla/5.0 hhapi"}) as r:
+    with requests.get(NAD_URL, stream=True, timeout=600, headers={"User-Agent": "Mozilla/5.0 open-distance"}) as r:
         r.raise_for_status()
         seen = 0
         chunk = 4 * 1024 * 1024

@@ -8,7 +8,7 @@ VERSION="${1:?usage: $0 <VERSION> [CONCURRENCY]}"
 CONCURRENCY="${2:-16}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="$ROOT/data/v2/out/$VERSION/tiles"
-BUCKET="hhapi-graph"
+BUCKET="od-graph"
 
 cd "$ROOT"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Load data/addresses.csv into the hhapi-geocode D1 database with an FTS5 index.
+# Load data/addresses.csv into the od-geocode D1 database with an FTS5 index.
 #
 # D1 has a per-statement size cap (SQLITE_TOOBIG), so we keep each INSERT
 # statement small (ROWS_PER_INSERT) and pack many INSERT statements per .sql
@@ -15,7 +15,7 @@ fi
 
 ROWS_PER_INSERT=${ROWS_PER_INSERT:-200}
 ROWS_PER_FILE=${ROWS_PER_FILE:-5000}
-DB=${DB:-hhapi-geocode}
+DB=${DB:-od-geocode}
 
 WORKDIR="data/d1-sql"
 rm -rf "$WORKDIR"

@@ -16,7 +16,7 @@ if [[ ! -f "$GRAPH_BIN" ]]; then
 fi
 
 echo "[deploy] uploading $GRAPH_BIN to R2..."
-wrangler r2 object put "hhapi-graph/graph-${DATA_VERSION}.bin" --file "$GRAPH_BIN" --remote
+wrangler r2 object put "od-graph/graph-${DATA_VERSION}.bin" --file "$GRAPH_BIN" --remote
 
 echo "[deploy] setting API_KEY secret..."
 echo -n "$OD_API_KEY" | wrangler secret put API_KEY

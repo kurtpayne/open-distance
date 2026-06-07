@@ -73,7 +73,7 @@ Free, open-source distance/duration matrix API for the continental US.
 An alternative to Google Maps Distance Matrix for applications that need
 distance + duration but don't need live traffic, POIs, or rendered maps.
 
-- Apache 2.0 source: https://github.com/kurtpayne/hhapi
+- Apache 2.0 source: https://github.com/kurtpayne/open-distance
 - Hosted free at https://open-distance.com (no API key, no registration)
 - Self-host for ~$5/month on Cloudflare
 

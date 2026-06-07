@@ -1,6 +1,6 @@
 # Third-party data and attribution
 
-`hhapi` is built entirely from open data. None of the following data is
+`open-distance` is built entirely from open data. None of the following data is
 distributed by this repository — `refresh.sh` downloads it on demand to a
 local `data/` directory which is `.gitignore`-d. Operators of forked
 deployments are responsible for displaying the relevant attribution to

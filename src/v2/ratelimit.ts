@@ -115,7 +115,7 @@ export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig)
     error_message:
       `Rate limit exceeded: ${tierLimit} requests per ${tierWindow} per IP. ` +
       `Try again in ${result.retryAfter ?? 60} second(s). ` +
-      `Self-host with your own limits: https://github.com/kurtpayne/hhapi`,
+      `Self-host with your own limits: https://github.com/kurtpayne/open-distance`,
     rows: [],
     origin_addresses: [],
     destination_addresses: [],

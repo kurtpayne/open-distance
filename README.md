@@ -1,6 +1,6 @@
-[![CI](https://github.com/kurtpayne/hhapi/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kurtpayne/hhapi/actions/workflows/ci.yml)
-[![Deploy](https://github.com/kurtpayne/hhapi/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/kurtpayne/hhapi/actions/workflows/deploy.yml)
-[![Acceptance](https://github.com/kurtpayne/hhapi/actions/workflows/acceptance.yml/badge.svg?branch=main)](https://github.com/kurtpayne/hhapi/actions/workflows/acceptance.yml)
+[![CI](https://github.com/kurtpayne/open-distance/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kurtpayne/open-distance/actions/workflows/ci.yml)
+[![Deploy](https://github.com/kurtpayne/open-distance/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/kurtpayne/open-distance/actions/workflows/deploy.yml)
+[![Acceptance](https://github.com/kurtpayne/open-distance/actions/workflows/acceptance.yml/badge.svg?branch=main)](https://github.com/kurtpayne/open-distance/actions/workflows/acceptance.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 # open-distance
@@ -11,8 +11,7 @@ alternative to commercial mapping APIs — runs for **~$5–10/month** on
 Cloudflare for the entire continental US.
 
 Live at **https://open-distance.com** (also reachable at
-`https://hhapi.propspress.com` during the rebrand). Worker binary still
-named `hhapi` internally for Cloudflare resource compatibility.
+`https://hhapi.propspress.com` during the rebrand transition window).
 
 [License: Apache 2.0](LICENSE) · [Data attribution: NOTICE.md](NOTICE.md) ·
 [Contributing](CONTRIBUTING.md)
@@ -31,7 +30,7 @@ named `hhapi` internally for Cloudflare resource compatibility.
    Cloudflare R2  ─ tiles/<version>/<tx>_<ty>.bin    (0.25° L0 graph tiles)
                     ~9 GB across ~13,650 tiles for US-48
 
-   Cloudflare D1  ─ 49 per-state shards (hhapi-geo-<state>)
+   Cloudflare D1  ─ 49 per-state shards (od-geo-<state>)
                     address rows (NAD + OpenAddresses + OSM, FTS5 indexed)
                     plus TIGER street segments for interpolation fallback
 

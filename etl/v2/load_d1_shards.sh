@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Load v2 per-state address CSVs into the single hhapi-geocode D1 (with state column).
+# Load v2 per-state address CSVs into the single od-geocode D1 (with state column).
 #
 # Schema is created idempotently on first run; subsequent runs replace rows for
 # the listed states only (so we can re-load one state without touching others).
@@ -9,7 +9,7 @@ set -euo pipefail
 VERSION="${1:?}"; shift
 STATES="$*"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DB="hhapi-geocode"
+DB="od-geocode"
 ROWS_PER_INSERT=${ROWS_PER_INSERT:-200}
 ROWS_PER_FILE=${ROWS_PER_FILE:-5000}
 

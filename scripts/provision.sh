@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision R2 bucket, D1 database, KV namespace for hhapi.
+# Provision R2 bucket, D1 database, KV namespace for open-distance.
 # Idempotent: prints existing ids if resources already exist.
 set -euo pipefail
 
@@ -9,9 +9,9 @@ cd "$(dirname "$0")/.."
 : "${CLOUDFLARE_API_TOKEN:?Need CLOUDFLARE_API_TOKEN}"
 : "${CLOUDFLARE_ACCOUNT_ID:?Need CLOUDFLARE_ACCOUNT_ID}"
 
-R2_BUCKET="hhapi-graph"
-D1_NAME="hhapi-geocode"
-KV_NAME="HHAPI_CACHE"
+R2_BUCKET="od-graph"
+D1_NAME="od-geocode"
+KV_NAME="OD_API_CACHE"
 
 echo "[provision] R2 bucket: $R2_BUCKET"
 wrangler r2 bucket list 2>/dev/null | grep -q "^$R2_BUCKET\$" \
@@ -32,7 +32,7 @@ echo "  D1_ID=$D1_ID"
 
 echo "[provision] KV: $KV_NAME"
 KV_JSON=$(wrangler kv namespace list 2>/dev/null || echo "[]")
-KV_ID=$(python3 -c "import sys,json; arr=json.load(sys.stdin); [print(k['id']) for k in arr if k.get('title')=='hhapi-$KV_NAME' or k.get('title')=='$KV_NAME']" <<<"$KV_JSON" | head -1)
+KV_ID=$(python3 -c "import sys,json; arr=json.load(sys.stdin); [print(k['id']) for k in arr if k.get('title')=='$KV_NAME']" <<<"$KV_JSON" | head -1)
 if [[ -z "$KV_ID" ]]; then
   CREATE_OUT=$(wrangler kv namespace create "$KV_NAME" 2>&1)
   echo "$CREATE_OUT"

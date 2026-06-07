@@ -49,7 +49,7 @@ random.seed()
 random.shuffle(cities)
 
 def hit(url):
-    req = urllib.request.Request(url, headers={"user-agent": "hhapi-acceptance"})
+    req = urllib.request.Request(url, headers={"user-agent": "open-distance-acceptance"})
     with urllib.request.urlopen(req, timeout=30) as r:
         body = r.read().decode()
     return r.status, body

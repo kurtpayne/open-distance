@@ -61,7 +61,7 @@ def fetch_state(state_code: str) -> tuple[str, int, bool]:
     tmp = out.with_suffix(out.suffix + ".part")
     url = state_url(state)
     log(f"GET {url}")
-    with requests.get(url, stream=True, timeout=600, headers={"User-Agent": "hhapi/1.0"}) as r:
+    with requests.get(url, stream=True, timeout=600, headers={"User-Agent": "open-distance/1.0"}) as r:
         if r.status_code == 404:
             log(f"  {state_code}: 404 (no _edges variant?)")
             return (state_code, 0, False)

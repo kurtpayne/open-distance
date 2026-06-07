@@ -7,7 +7,7 @@ set -euo pipefail
 VERSION="${1:?usage: publish_manifest.sh <VERSION>}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-# KV namespace id for HHAPI_CACHE (also used as manifest store).
+# KV namespace id for OD_API_CACHE (also used as manifest store).
 KV_ID=$(grep -E 'id = "[0-9a-f]{32}"' "$ROOT/wrangler.toml" | head -1 | grep -oE '[0-9a-f]{32}')
 
 # State coverage = whatever address shards we just built.

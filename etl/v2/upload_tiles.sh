@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Upload built tiles to R2: data/v2/out/<version>/tiles/<tx>_<ty>.bin -> hhapi-graph/tiles/<version>/<tx>_<ty>.bin
+# Upload built tiles to R2: data/v2/out/<version>/tiles/<tx>_<ty>.bin -> od-graph/tiles/<version>/<tx>_<ty>.bin
 set -euo pipefail
 VERSION="${1:?usage: upload_tiles.sh <VERSION>}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="$ROOT/data/v2/out/$VERSION/tiles"
-BUCKET="hhapi-graph"
+BUCKET="od-graph"
 
 if [[ ! -d "$SRC" ]]; then
   echo "ERROR: no tile output at $SRC" >&2

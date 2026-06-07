@@ -22,7 +22,7 @@ resolve_id() {
 
 for ST in $STATES; do
   LC=$(echo "$ST" | tr '[:upper:]' '[:lower:]')
-  NAME="hhapi-geo-$LC"
+  NAME="od-geo-$LC"
   ID=$(resolve_id "$NAME")
   if [[ -z "$ID" ]]; then
     echo "[d1-shards] creating $NAME"

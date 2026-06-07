@@ -144,7 +144,7 @@ function shell(title: string, body: string, extraHead = "", path = "/"): string 
         "softwareVersion": "v2",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "license": "https://www.apache.org/licenses/LICENSE-2.0",
-        "codeRepository": "https://github.com/kurtpayne/hhapi",
+        "codeRepository": "https://github.com/kurtpayne/open-distance",
         "description": SITE_DESCRIPTION,
         "featureList": [
           "Distance matrix between addresses or coordinates",
@@ -186,7 +186,7 @@ ${extraHead}
     <a href="/docs">API</a>
     <a href="/coverage">/coverage</a>
     <a href="/privacy">Privacy</a>
-    <a href="https://github.com/kurtpayne/hhapi">GitHub</a>
+    <a href="https://github.com/kurtpayne/open-distance">GitHub</a>
   </nav>
 </header>
 ${body}
@@ -196,7 +196,7 @@ ${body}
   registration, no API key. Apache 2.0 licensed.
   Data: OpenStreetMap (ODbL), U.S. NAD &amp; TIGER (public domain),
   OpenAddresses (per-source attribution). See
-  <a href="https://github.com/kurtpayne/hhapi/blob/main/NOTICE.md">NOTICE</a>.
+  <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE.md">NOTICE</a>.
 </footer>
 </body></html>`;
 }
@@ -403,7 +403,7 @@ export function renderDocs(): string {
 
 <h2>Self-hosting</h2>
 <p>The whole stack (Cloudflare Worker + R2 + D1 + KV) costs ~$5–10/month for
-   the entire continental US. Source: <a href="https://github.com/kurtpayne/hhapi">github.com/kurtpayne/hhapi</a>.
+   the entire continental US. Source: <a href="https://github.com/kurtpayne/open-distance">github.com/kurtpayne/open-distance</a>.
    <code>./refresh.sh</code> handles the data pipeline from a clean clone.</p>
 `;
   return shell("open-distance — API docs", body);
@@ -448,7 +448,7 @@ export function renderPrivacy(): string {
 <h3>If you want to keep even the URL private</h3>
 <p>Self-host. The whole stack is open source under Apache 2.0; fork the repo
    and deploy it on your own Cloudflare account for ~$5/month. See
-   <a href="https://github.com/kurtpayne/hhapi/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+   <a href="https://github.com/kurtpayne/open-distance/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
 
 <h3>Contact</h3>
 <p>Open an issue on the GitHub repo if you have a privacy concern with the

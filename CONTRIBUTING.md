@@ -1,7 +1,7 @@
-# Contributing to hhapi
+# Contributing to open-distance
 
-Thanks for your interest. `hhapi` exists as a low-cost (~$5–10/mo on
-Cloudflare) alternative to commercial distance-matrix APIs. Contributions
+Thanks for your interest. `open-distance` exists as a low-cost (~$5–10/mo
+on Cloudflare) alternative to commercial distance-matrix APIs. Contributions
 that lower the barrier — coverage, accuracy, perf, docs — are welcome.
 
 ## Setting up a fork
@@ -9,7 +9,7 @@ that lower the barrier — coverage, accuracy, perf, docs — are welcome.
 The repo doesn't ship pre-built data. From a clean clone:
 
 ```bash
-git clone <your-fork> hhapi && cd hhapi
+git clone <your-fork> open-distance && cd open-distance
 
 # 1. Prereqs (one-time on the dev machine)
 brew install osmium-tool       # or your OS's equivalent
