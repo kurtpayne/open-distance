@@ -6,10 +6,10 @@ account_id = "b5cdaad4db136b796354280697e0ceb9"
 [vars]
 DATA_VERSION = "2026-06"
 # L1 (motorway) highway overlay for long-haul cross-country routes
-# (NYC <-> LA-scale). Currently disabled: the 110 MB binary + 48 MB tile
-# LRU exceeds the 128 MB Worker isolate cap. Re-enable once the L1 loader
-# is rewritten to do zero-copy decode (Rust/WASM follow-up).
-L1_ENABLED = "0"
+# (NYC <-> LA-scale). Re-enabled after dropping the reverse CSR + bidir
+# A* in overlay.ts -- forward-only A* fits in the 128 MB isolate budget
+# (~110 MB L1 + ~24 MB per-request scratch vs the old 170+ MB peak).
+L1_ENABLED = "1"
 
 # Rust-compiled WASM router. Built from rust-router/ via:
 #   cd rust-router && cargo build --release --target wasm32-unknown-unknown

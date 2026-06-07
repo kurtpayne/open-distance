@@ -80,26 +80,16 @@ function decode(buf: ArrayBuffer): Overlay {
   const gridOffsets = new Uint32Array(buf, p, gridTotal + 1); p += (gridTotal + 1) * 4;
   const gridNodeIds = new Uint32Array(buf, p, N); p += N * 4;
 
-  // Build reverse CSR: for each node v, list of (source u, time, len).
-  const revDeg = new Uint32Array(N);
-  for (let e = 0; e < M; e++) revDeg[edgeTargets[e]]++;
-  const revOffsets = new Uint32Array(N + 1);
-  for (let i = 0; i < N; i++) revOffsets[i + 1] = revOffsets[i] + revDeg[i];
-  const revSources = new Uint32Array(M);
-  const revTimeS = new Float32Array(M);
-  const revLenM = new Float32Array(M);
-  const cursor = new Uint32Array(N);
-  for (let u = 0; u < N; u++) {
-    const s = edgeOffsets[u]; const e = edgeOffsets[u + 1];
-    for (let i = s; i < e; i++) {
-      const v = edgeTargets[i];
-      const slot = revOffsets[v] + cursor[v];
-      revSources[slot] = u;
-      revTimeS[slot] = edgeTimeS[i];
-      revLenM[slot] = edgeLenM[i];
-      cursor[v]++;
-    }
-  }
+  // No reverse CSR -- we route forward-only on L1. Building the reverse
+  // direction added ~60 MB to module-resident memory which put us over the
+  // 128 MB Worker isolate cap (forward-only A* runs single-direction, so
+  // we don't need it). The Overlay.rev* fields are kept as 1-byte sentinels
+  // so the type stays stable; bidirAStar() is now an alias that calls
+  // forwardAStar with the same args.
+  const revOffsets = new Uint32Array(1);
+  const revSources = new Uint32Array(1);
+  const revTimeS = new Float32Array(1);
+  const revLenM = new Float32Array(1);
 
   return {
     N, M, lat, lon, edgeOffsets, edgeTargets, edgeTimeS, edgeLenM,
@@ -200,7 +190,13 @@ class MinHeap {
 
 export interface L1LegResult { timeS: number; lenM: number }
 
-export function bidirAStar(
+/**
+ * Forward-only weighted A* on the L1 overlay. Replaces the previous bidir
+ * implementation: the reverse CSR cost ~60 MB of module-resident memory and
+ * pushed us over the 128 MB Worker isolate cap on cross-country queries.
+ * Forward-only is a few % slower but fits in budget.
+ */
+export function forwardAStar(
   o: Overlay,
   src: number,
   dst: number,
@@ -210,99 +206,57 @@ export function bidirAStar(
   const N = o.N;
   const dstLat = o.lat[dst];
   const dstLon = o.lon[dst];
-  const srcLat = o.lat[src];
-  const srcLon = o.lon[src];
 
-  const hFwd = (n: number) => {
+  const h = (n: number) => {
     const d = haversineMeters(o.lat[n], o.lon[n], dstLat, dstLon);
     return (d / MAX_ROAD_SPEED_M_S) * HEURISTIC_WEIGHT;
   };
-  const hBwd = (n: number) => {
-    const d = haversineMeters(o.lat[n], o.lon[n], srcLat, srcLon);
-    return (d / MAX_ROAD_SPEED_M_S) * HEURISTIC_WEIGHT;
-  };
 
-  const fDist = new Float32Array(N); fDist.fill(Infinity);
-  const fLen = new Float32Array(N);
-  const fSettled = new Uint8Array(N);
-  const bDist = new Float32Array(N); bDist.fill(Infinity);
-  const bLen = new Float32Array(N);
-  const bSettled = new Uint8Array(N);
-  fDist[src] = 0; bDist[dst] = 0;
+  const dist = new Float32Array(N); dist.fill(Infinity);
+  const len = new Float32Array(N);
+  const settledMark = new Uint8Array(N);
+  dist[src] = 0;
 
-  const fHeap = new MinHeap();
-  const bHeap = new MinHeap();
-  fHeap.push(hFwd(src), 0, src);
-  bHeap.push(hBwd(dst), 0, dst);
+  const heap = new MinHeap();
+  heap.push(h(src), 0, src);
 
-  let mu = Infinity;       // tentative best total time
-  let muLen = Infinity;
   const tmp = [0, 0, 0];
   const maxSettled = opts.maxSettled ?? 3_000_000;
   let settled = 0;
 
-  while (fHeap.size > 0 && bHeap.size > 0 && settled < maxSettled) {
-    // Termination: when the min f from EITHER direction would exceed mu, the
-    // current tentative path is optimal.
-    if (fHeap.top() + bHeap.top() >= mu) break;
-
-    // Pop from the smaller frontier.
-    if (fHeap.top() <= bHeap.top()) {
-      fHeap.popInto(tmp);
-      const u = tmp[2];
-      if (fSettled[u]) continue;
-      fSettled[u] = 1;
-      settled++;
-      // Meeting check.
-      if (bDist[u] !== Infinity) {
-        const total = fDist[u] + bDist[u];
-        if (total < mu) {
-          mu = total;
-          muLen = fLen[u] + bLen[u];
-        }
-      }
-      const gu = fDist[u];
-      const luLen = fLen[u];
-      const s = o.edgeOffsets[u]; const e = o.edgeOffsets[u + 1];
-      for (let i = s; i < e; i++) {
-        const v = o.edgeTargets[i];
-        if (fSettled[v]) continue;
-        const nd = gu + o.edgeTimeS[i];
-        if (nd < fDist[v]) {
-          fDist[v] = nd;
-          fLen[v] = luLen + o.edgeLenM[i];
-          fHeap.push(nd + hFwd(v), nd, v);
-        }
-      }
-    } else {
-      bHeap.popInto(tmp);
-      const u = tmp[2];
-      if (bSettled[u]) continue;
-      bSettled[u] = 1;
-      settled++;
-      if (fDist[u] !== Infinity) {
-        const total = fDist[u] + bDist[u];
-        if (total < mu) {
-          mu = total;
-          muLen = fLen[u] + bLen[u];
-        }
-      }
-      const gu = bDist[u];
-      const luLen = bLen[u];
-      const s = o.revOffsets[u]; const e = o.revOffsets[u + 1];
-      for (let i = s; i < e; i++) {
-        const v = o.revSources[i];
-        if (bSettled[v]) continue;
-        const nd = gu + o.revTimeS[i];
-        if (nd < bDist[v]) {
-          bDist[v] = nd;
-          bLen[v] = luLen + o.revLenM[i];
-          bHeap.push(nd + hBwd(v), nd, v);
-        }
+  while (heap.size > 0 && settled < maxSettled) {
+    heap.popInto(tmp);
+    const u = tmp[2];
+    if (settledMark[u]) continue;
+    settledMark[u] = 1;
+    settled++;
+    if (u === dst) {
+      return { timeS: dist[u], lenM: len[u] };
+    }
+    const gu = dist[u];
+    const luLen = len[u];
+    const s = o.edgeOffsets[u]; const e = o.edgeOffsets[u + 1];
+    for (let i = s; i < e; i++) {
+      const v = o.edgeTargets[i];
+      if (settledMark[v]) continue;
+      const nd = gu + o.edgeTimeS[i];
+      if (nd < dist[v]) {
+        dist[v] = nd;
+        len[v] = luLen + o.edgeLenM[i];
+        heap.push(nd + h(v), nd, v);
       }
     }
   }
 
-  if (mu === Infinity) return null;
-  return { timeS: mu, lenM: muLen };
+  return null;
+}
+
+// Back-compat alias: callers used to invoke bidirAStar; same arg/return shape.
+export function bidirAStar(
+  o: Overlay,
+  src: number,
+  dst: number,
+  opts: { maxSettled?: number } = {},
+): L1LegResult | null {
+  return forwardAStar(o, src, dst, opts);
 }
