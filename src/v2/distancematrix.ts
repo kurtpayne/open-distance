@@ -123,6 +123,88 @@ async function writeLegCacheBatch(
   }));
 }
 
+async function tryWasmSinglePair(
+  url: URL, env: Env, originQ: string, destQ: string,
+): Promise<Response | null> {
+  // Lazy imports keep the WASM path off the default cold-start budget.
+  const { snapK, packTileId, getTileBytes } = await import("./tiles");
+  const { loadWasmRouter, astarMultiTile, isLoaded } = await import("./wasm_router");
+  const wasmMod = (await import("../../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
+
+  const oG = await geocode(originQ, env);
+  const dG = await geocode(destQ, env);
+  if (oG.status !== "OK" || dG.status !== "OK") return null;
+  const oSnaps = await snapK(env.GRAPH, env.DATA_VERSION, (oG as { lat: number }).lat, (oG as { lon: number }).lon, 1);
+  const dSnaps = await snapK(env.GRAPH, env.DATA_VERSION, (dG as { lat: number }).lat, (dG as { lon: number }).lon, 1);
+  if (oSnaps.length === 0 || dSnaps.length === 0) return null;
+  const src = oSnaps[0]; const dst = dSnaps[0];
+
+  // Tile corridor: bbox over snap tiles + 1-tile buffer. Capped at 16 tiles.
+  const txMin = Math.min(src.tx, dst.tx) - 1;
+  const txMax = Math.max(src.tx, dst.tx) + 1;
+  const tyMin = Math.min(src.ty, dst.ty) - 1;
+  const tyMax = Math.max(src.ty, dst.ty) + 1;
+  const tileCount = (txMax - txMin + 1) * (tyMax - tyMin + 1);
+  if (tileCount > 16) return null;
+
+  if (!isLoaded()) await loadWasmRouter(wasmMod);
+
+  const tiles: { tileId: number; bytes: Uint8Array }[] = [];
+  await Promise.all(
+    Array.from({ length: tileCount }, (_, i) => {
+      const tx = txMin + (i % (txMax - txMin + 1));
+      const ty = tyMin + Math.floor(i / (txMax - txMin + 1));
+      return getTileBytes(env.GRAPH, env.DATA_VERSION, tx, ty).then(bytes => {
+        if (bytes) tiles.push({ tileId: packTileId(tx, ty), bytes });
+      });
+    }),
+  );
+
+  const r = astarMultiTile(
+    tiles,
+    packTileId(src.tx, src.ty), src.dense,
+    packTileId(dst.tx, dst.ty), dst.dense,
+    200_000,
+  );
+  if (!r.ok) return null;
+
+  const unitsParam = (url.searchParams.get("units") || "imperial").toLowerCase();
+  const units: Units = unitsParam === "metric" ? "metric" : "imperial";
+  const meters = Math.round(r.lenM);
+  const seconds = Math.round(r.timeS);
+  const oMatch = (oG as { match: string }).match;
+  const dMatch = (dG as { match: string }).match;
+  const oNorm = (oG as { normalized: string }).normalized;
+  const dNorm = (dG as { normalized: string }).normalized;
+
+  const body = {
+    destination_addresses: [dNorm],
+    destination_matches: [dMatch],
+    origin_addresses: [oNorm],
+    origin_matches: [oMatch],
+    rows: [{ elements: [{
+      status: "OK",
+      distance: { text: formatDistance(meters, units), value: meters },
+      duration: { text: formatDuration(seconds), value: seconds },
+    }] }],
+    status: "OK",
+    data_version: env.DATA_VERSION,
+    copyrights:
+      "Map data © OpenStreetMap contributors (ODbL 1.0). " +
+      "Addresses: NAD (US DOT, public domain), OpenAddresses (per-source -- see /attribution/openaddresses.json), " +
+      "OSM addr:* nodes (ODbL 1.0). Interpolation: US Census TIGER 2024 (public domain). " +
+      "Full attribution: https://open-distance.com/attribution",
+  };
+  const headers: Record<string, string> = {
+    "content-type": "application/json; charset=UTF-8",
+    "cache-control": "public, max-age=3600, s-maxage=3600",
+    "x-od-router-impl": "wasm",
+    "x-od-router-settled": String(r.settledCount),
+    "x-od-router-tiles": String(tiles.length),
+  };
+  return new Response(JSON.stringify(body), { status: 200, headers });
+}
+
 export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response> {
   const origins = splitMulti(url.searchParams.get("origins"));
   const destinations = splitMulti(url.searchParams.get("destinations"));
@@ -140,6 +222,18 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
       error_message: "Max 100 elements (origins × destinations) per request.",
       rows: [], origin_addresses: [], destination_addresses: [],
     });
+  }
+
+  // Opt-in routing via the Rust-compiled WASM router. Single-pair only for
+  // now (origins.length == destinations.length == 1). Useful for A/B latency
+  // comparisons against the default TS router. Adds an x-od-router-impl
+  // response header so callers can see which engine answered. Long routes
+  // (corridor > 16 tiles) fall back to the TS router for the same query.
+  if (url.searchParams.get("router") === "wasm"
+      && origins.length === 1 && destinations.length === 1) {
+    const r = await tryWasmSinglePair(url, env, origins[0], destinations[0]);
+    if (r) return r;
+    // else: corridor too large or snap failed -- fall through to TS path
   }
 
   const unitsParam = (url.searchParams.get("units") || "imperial").toLowerCase();
