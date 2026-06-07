@@ -45,8 +45,7 @@ die()  { log "ERROR: $*"; exit 1; }
 # env
 # ---------------------------------------------------------------------------
 load_env() {
-  # Back-compat: HHAPI_ENV_FILE still honored if set (pre-OD_API rename).
-  local envfile="${OD_API_ENV_FILE:-${HHAPI_ENV_FILE:-$ROOT/.env}}"
+  local envfile="${OD_API_ENV_FILE:-$ROOT/.env}"
   if [[ -f "$envfile" ]]; then
     # Accept either CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY (alias used by
     # some user shells); use whichever appears first.
@@ -56,12 +55,11 @@ load_env() {
     if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
       export CLOUDFLARE_ACCOUNT_ID="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
-    # OD_API_* are canonical; HHAPI_* still honored for back-compat.
     if [[ -z "${OD_API_KEY:-}" ]]; then
-      export OD_API_KEY="$(grep -E '^(OD_API_KEY|HHAPI_API_KEY)=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+      export OD_API_KEY="$(grep '^OD_API_KEY=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
     if [[ -z "${OD_API_HOSTNAME:-}" ]]; then
-      export OD_API_HOSTNAME="$(grep -E '^(OD_API_HOSTNAME|HHAPI_HOSTNAME)=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+      export OD_API_HOSTNAME="$(grep '^OD_API_HOSTNAME=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
   fi
   [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN not set (set it directly or put it in $envfile)"

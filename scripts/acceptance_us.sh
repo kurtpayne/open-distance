@@ -3,7 +3,7 @@
 # Avoids associative arrays so it runs on macOS's stock bash 3.2.
 set -uo pipefail
 : "${OD_API_KEY:?Need OD_API_KEY}"
-BASE="${OD_API_BASE:-${HHAPI_BASE:-https://open-distance.com}}"
+BASE="${OD_API_BASE:-https://open-distance.com}"
 
 pass=0; fail=0
 

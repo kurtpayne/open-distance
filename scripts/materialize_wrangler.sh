@@ -11,8 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 : "${CLOUDFLARE_API_TOKEN:?Need CLOUDFLARE_API_TOKEN}"
 : "${CLOUDFLARE_ACCOUNT_ID:?Need CLOUDFLARE_ACCOUNT_ID}"
-: "${OD_API_HOSTNAME:=${HHAPI_HOSTNAME:-}}"
-[[ -n "$OD_API_HOSTNAME" ]] || { echo "ERROR: OD_API_HOSTNAME not set (e.g. distance.example.com)" >&2; exit 1; }
+: "${OD_API_HOSTNAME:?Need OD_API_HOSTNAME (e.g. distance.example.com)}"
 
 TEMPLATE="$ROOT/wrangler.toml.template"
 OUT="$ROOT/wrangler.toml"

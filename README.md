@@ -11,13 +11,12 @@ with Google's legacy Distance Matrix API. Built as a cheap, fork-and-deploy
 alternative to commercial mapping APIs — runs for **~$5–10/month** on
 Cloudflare for the entire continental US.
 
-Live at **https://open-distance.com** (also reachable at
-`https://hhapi.propspress.com` during the rebrand transition window).
+Live at **https://open-distance.com**.
 
 [License: Apache 2.0](LICENSE) · [Data attribution: NOTICE](NOTICE) ·
 [Contributing](CONTRIBUTING.md)
 
-- Hostname: `https://open-distance.com` (and `https://hhapi.propspress.com`)
+- Hostname: `https://open-distance.com`
 - Auth: none — public endpoint, rate-limited per IP (KV-backed)
 - Coverage: continental US (lower 48 + DC)
 - Endpoints:
