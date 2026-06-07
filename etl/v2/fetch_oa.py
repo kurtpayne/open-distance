@@ -58,38 +58,107 @@ def list_us_address_sources() -> list[dict]:
     return runs
 
 
-def persist_attribution_manifest(runs: list[dict]) -> None:
+OA_SOURCE_RAW = "https://raw.githubusercontent.com/openaddresses/openaddresses/master/sources"
+
+
+def _fetch_one_source_attribution(source_path: str) -> dict:
+    """Pull the per-source manifest from OA's GitHub source repo.
+
+    OA stores per-county / per-city authority + license info inside the source
+    JSON at `layers.addresses[*]`, not at top-level. We pull the first layer
+    that has an attribution string (most sources only have one addresses
+    layer; some split residential/commercial).
+    """
+    url = f"{OA_SOURCE_RAW}/{source_path}.json"
+    try:
+        r = requests.get(url, headers={"User-Agent": "open-distance/1.0"}, timeout=20)
+        if r.status_code != 200:
+            return {"attribution": "", "license": "", "website": "", "note": ""}
+        d = r.json()
+    except Exception:
+        return {"attribution": "", "license": "", "website": "", "note": ""}
+    layers = (d.get("layers") or {}).get("addresses") or []
+    for layer in layers:
+        attribution = (layer.get("attribution") or "").strip()
+        if attribution:
+            return {
+                "attribution": attribution,
+                "license": layer.get("license") or "",
+                "website": layer.get("website") or "",
+                "note": (layer.get("note") or d.get("note") or "").strip(),
+            }
+    # No layer-level attribution; fall back to top-level fields (older schema)
+    # or just the website if that's all we have.
+    if layers:
+        layer = layers[0]
+        return {
+            "attribution": "",
+            "license": layer.get("license") or d.get("license") or "",
+            "website": layer.get("website") or d.get("website") or "",
+            "note": (layer.get("note") or d.get("note") or "").strip(),
+        }
+    return {
+        "attribution": "",
+        "license": d.get("license") or "",
+        "website": d.get("website") or "",
+        "note": (d.get("note") or "").strip(),
+    }
+
+
+def persist_attribution_manifest(runs: list[dict], workers: int = 24) -> None:
     """Write data/v2/oa/attribution.json with per-source attribution + license.
 
     OA's redistribution terms require downstream consumers to surface the
-    originating authority for each source. We capture the `attribution`,
-    `license`, `website`, `note`, and `source_url` fields when present so the
-    Worker can serve them at /attribution/openaddresses.json.
+    originating authority for each source. The /api/data endpoint doesn't
+    include attribution text -- that lives in OA's per-source manifests on
+    GitHub. We fetch them concurrently and cache the result.
+
+    Idempotent: re-running just re-fetches and writes again. Cheap: each
+    manifest is a few KB and raw.githubusercontent.com is CDN-backed.
     """
     import datetime
-    sources = []
+    paths = []
     for r in runs:
         src = r.get("source", "")
         state = src.split("/")[1].upper() if src.startswith("us/") and "/" in src[3:] else ""
-        sources.append({
-            "source": src,
-            "state": state,
-            "attribution": r.get("attribution") or r.get("source_attribution") or "",
-            "license": r.get("license") or "",
-            "website": r.get("website") or r.get("data_website") or "",
-            "note": r.get("note") or "",
-        })
-    sources.sort(key=lambda s: s["source"])
+        paths.append((src, state))
+    paths.sort(key=lambda p: p[0])
+
+    log(f"  enriching {len(paths)} OA sources from {OA_SOURCE_RAW}/...")
+    start = time.time()
+    sources = [None] * len(paths)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {
+            ex.submit(_fetch_one_source_attribution, src): (i, src, state)
+            for i, (src, state) in enumerate(paths)
+        }
+        done_count = 0
+        for fut in concurrent.futures.as_completed(futures):
+            i, src, state = futures[fut]
+            try:
+                fields = fut.result()
+            except Exception:
+                fields = {"attribution": "", "license": "", "website": "", "note": ""}
+            sources[i] = {"source": src, "state": state, **fields}
+            done_count += 1
+            if done_count % 250 == 0 or done_count == len(paths):
+                elapsed = time.time() - start
+                with_attr = sum(1 for s in sources if s and s["attribution"])
+                log(f"  enrich progress: {done_count}/{len(paths)} ({with_attr} with attribution), {elapsed:.0f}s")
+
     out = {
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "source": "https://batch.openaddresses.io/api/data",
+        "source": "https://batch.openaddresses.io/api/data + per-source enrichment from " + OA_SOURCE_RAW,
         "count": len(sources),
+        "with_attribution": sum(1 for s in sources if s["attribution"]),
+        "with_license": sum(1 for s in sources if s["license"]),
         "sources": sources,
     }
     OA_DIR.mkdir(parents=True, exist_ok=True)
     path = OA_DIR / "attribution.json"
     path.write_text(json.dumps(out, indent=2, ensure_ascii=False))
-    log(f"  wrote per-source attribution manifest -> {path} ({len(sources)} sources)")
+    log(f"  wrote per-source attribution manifest -> {path}")
+    log(f"    {len(sources)} sources, {out['with_attribution']} with attribution text, {out['with_license']} with license")
 
 
 def slugify(src: str) -> tuple[str, str]:
@@ -137,6 +206,13 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--states", nargs="*", help="Optional state code filter (uppercase)")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument(
+        "--metadata-only",
+        action="store_true",
+        help="Discover sources + refresh data/v2/oa/attribution.json (incl. "
+             "per-source attribution from OA GitHub), then exit without "
+             "downloading the GeoJSONs.",
+    )
     args = ap.parse_args(argv)
 
     runs = list_us_address_sources()
@@ -144,6 +220,10 @@ def main(argv: list[str]) -> int:
         accept = {s.upper() for s in args.states}
         runs = [r for r in runs if r["source"].split("/")[1].upper() in accept]
         log(f"  filtered to {len(runs)} sources for {accept}")
+
+    if args.metadata_only:
+        log("metadata-only: skipping GeoJSON downloads.")
+        return 0
 
     OA_DIR.mkdir(parents=True, exist_ok=True)
     start = time.time()

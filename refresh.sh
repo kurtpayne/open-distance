@@ -13,6 +13,9 @@
 #   refresh.sh addresses [STATES...] NAD+OA+OSM merged CSV + TIGER segments CSV
 #   refresh.sh upload-r2             push tiles to R2 (parallel)
 #   refresh.sh load-d1 [STATES...]   push address shards to D1 (parallel HTTP)
+#   refresh.sh oa-attribution        refresh data/v2/oa/attribution.json from
+#                                    OpenAddresses' per-source manifests
+#                                    (no GeoJSON downloads; ~2-3 min)
 #   refresh.sh publish               write manifest to KV (atomic version)
 #   refresh.sh all [STATES...]       all stages in order (default: every state)
 #
@@ -142,6 +145,20 @@ stage_fetch() {
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_tiger $states 2>&1 | tee -a "$LOG_DIR/fetch.log"
 }
 
+stage_oa_attribution() {
+  # Refresh the per-source OpenAddresses attribution manifest only -- no
+  # GeoJSON downloads. ~2-3 min for ~2300 sources fetched concurrently from
+  # OpenAddresses' GitHub source repo. Run after stage_fetch picks up new
+  # sources, or standalone to refresh attribution text without re-downloading
+  # the underlying address data. Output: data/v2/oa/attribution.json (uploaded
+  # to KV by stage_publish under key "attribution:openaddresses", served by
+  # the Worker at /attribution/openaddresses.json).
+  ensure_venv
+  log "oa-attribution: refreshing per-source OA manifest"
+  PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.v2.fetch_oa --metadata-only 2>&1 \
+    | tee -a "$LOG_DIR/oa-attribution.log"
+}
+
 stage_tiles() {
   ensure_venv
   local states; states=$(resolve_states "$@")
@@ -233,6 +250,7 @@ case "$cmd" in
   setup)      stage_setup ;;
   bootstrap)  stage_bootstrap ;;
   fetch)      stage_fetch "$@" ;;
+  oa-attribution) stage_oa_attribution ;;
   tiles)      stage_tiles "$@" ;;
   overlay)    stage_overlay ;;
   addresses)  stage_addresses "$@" ;;
