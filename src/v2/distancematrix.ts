@@ -14,7 +14,12 @@ const SNAP_K = 5;
 // Above this straight-line distance, use the L1 highway overlay instead of
 // the tiled L0 graph. Tuned to: long enough that L0 weighted-A* still works
 // reliably under it, short enough that we don't miss anything truly local.
-const L1_DISPATCH_M = 320_000;  // ~200 mi
+// Straight-line distance above which we try the L1 overlay instead of L0.
+// Set high (~1500 mi) because the L1 overlay's forward A* sometimes returns
+// ZERO_RESULTS on mid-range corridors where L0 reliably finds a path. Only
+// true cross-country (~NYC<->LA scale) actually needs L1. The earlier 200 mi
+// threshold caused mid-range regressions after we dropped the reverse CSR.
+const L1_DISPATCH_M = 2_400_000;  // ~1500 mi
 
 // L1 dispatch is gated by an env-var feature flag so a half-built / oversized
 // L1 binary in R2 can't OOM the isolate. Set L1_ENABLED=1 once the overlay
