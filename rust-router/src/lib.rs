@@ -288,7 +288,7 @@ pub fn astar_intra_tile(tile: &TileView, src: u32, dst: u32, settled_cap: u32)
 // state so per-request memory scales with settled count, not n_nodes.
 // ---------------------------------------------------------------------------
 
-const L1_MAGIC: u32 = 0x3149_4848; // "HHL1" little-endian
+const L1_MAGIC: u32 = 0x314c_4848; // "HHL1" little-endian ('L' = 0x4c, not 'I' = 0x49)
 
 pub struct L1View<'a> {
     pub n_nodes: u32,
