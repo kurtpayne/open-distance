@@ -146,10 +146,13 @@ export function l1Route(
 ): L1RouteResult {
   if (!instance) throw new Error("WASM router not loaded");
   const argsLen = 24 + l1Bytes.byteLength;
+  // Do all the allocs FIRST before any view, because alloc can grow linear
+  // memory and detach any ArrayBuffer reference acquired beforehand.
   const argsPtr = instance.od_alloc(argsLen);
   const resultPtr = instance.od_alloc(28);
   try {
-    const mem = new Uint8Array(instance.memory.buffer);
+    // Re-acquire memory.buffer AFTER the allocs -- earlier views into a
+    // pre-grow buffer are detached and write into nothing.
     const dv = new DataView(instance.memory.buffer, argsPtr, 24);
     dv.setFloat32(0, srcLat, true);
     dv.setFloat32(4, srcLon, true);
@@ -157,8 +160,10 @@ export function l1Route(
     dv.setFloat32(12, dstLon, true);
     dv.setUint32(16, settledCap, true);
     dv.setUint32(20, l1Bytes.byteLength, true);
-    mem.set(l1Bytes, argsPtr + 24);
+    new Uint8Array(instance.memory.buffer).set(l1Bytes, argsPtr + 24);
     const rc = instance.od_l1_route(argsPtr, argsLen, resultPtr);
+    // Re-acquire one more time AFTER the call in case the function itself
+    // grew memory (od_l1_route shouldn't, but defensive).
     const out = new DataView(instance.memory.buffer, resultPtr, 28);
     return {
       ok: rc === 1 && Number.isFinite(out.getFloat32(0, true)),
