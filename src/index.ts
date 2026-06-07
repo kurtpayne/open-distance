@@ -15,6 +15,43 @@ export default {
 
     // -- API endpoints --------------------------------------------------------
     if (url.pathname === "/healthz") return v2Health(env);
+    if (url.pathname === "/healthz/api") {
+      // End-to-end probe: runs a real Distance Matrix query (SF intra-metro,
+      // ~1 mi) through the same handler real callers hit. Verifies geocode +
+      // snap + route + response shape. 200 with timing + result on success,
+      // 503 with the failure reason on any error. Skip rate-limit gate -- we
+      // call v2Handle directly so monitoring services aren't gated by the
+      // public per-IP cap.
+      const probeUrl = new URL("https://open-distance.com/maps/api/distancematrix/json?origins=37.7749,-122.4194&destinations=37.7849,-122.4094&units=imperial");
+      const t0 = Date.now();
+      try {
+        const resp = await v2Handle(probeUrl, env);
+        const totalMs = Date.now() - t0;
+        const body = await resp.json() as { status?: string; rows?: { elements?: { status?: string; distance?: { value?: number }; duration?: { value?: number } }[] }[] };
+        const el = body.rows?.[0]?.elements?.[0];
+        const ok = body.status === "OK" && el?.status === "OK" && typeof el.distance?.value === "number" && el.distance.value > 0;
+        return new Response(JSON.stringify({
+          status: ok ? "ok" : "error",
+          version: env.DATA_VERSION,
+          probe: { origins: ["37.7749,-122.4194"], destinations: ["37.7849,-122.4094"], expected: "intra-SF ~1 mi" },
+          result: ok ? { distance_m: el?.distance?.value, duration_s: el?.duration?.value } : { matrix_status: body.status, element_status: el?.status ?? null },
+          total_ms: totalMs,
+        }), {
+          status: ok ? 200 : 503,
+          headers: { "content-type": "application/json; charset=UTF-8", "cache-control": "no-store" },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({
+          status: "error",
+          version: env.DATA_VERSION,
+          error: (e as Error).message,
+          total_ms: Date.now() - t0,
+        }), {
+          status: 503,
+          headers: { "content-type": "application/json; charset=UTF-8", "cache-control": "no-store" },
+        });
+      }
+    }
     if (url.pathname === "/healthz/wasm") {
       // Exercises the Rust-compiled WASM router end-to-end on a synthetic
       // 3-node tile (0 -> 1 -> 2, 100 m / 10 s per edge). Returns the timings
