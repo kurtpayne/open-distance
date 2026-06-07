@@ -1,0 +1,16 @@
+[package]
+name = "od-router"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Tile-paged routing primitives for open-distance, compiled to WASM"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "z"      # optimize for size; the hot loops are tight enough that O3 isn't a big win
+lto = true
+codegen-units = 1
+panic = "abort"      # no unwinder -> smaller binary; matches Worker semantics anyway
+strip = true

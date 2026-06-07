@@ -10,6 +10,12 @@ DATA_VERSION = "2026-06"
 # to R2 under overlay/<DATA_VERSION>/l1.bin. Adds ~115 MB of isolate memory.
 L1_ENABLED = "1"
 
+# Rust-compiled WASM router. Built from rust-router/ via:
+#   cd rust-router && cargo build --release --target wasm32-unknown-unknown
+# Output is ~30 KB; loaded as a WebAssembly.Module at Worker startup.
+[wasm_modules]
+ROUTER_WASM = "rust-router/target/wasm32-unknown-unknown/release/od_router.wasm"
+
 [[r2_buckets]]
 binding = "GRAPH"
 bucket_name = "od-graph"

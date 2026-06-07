@@ -18,3 +18,5 @@ venv/
 .DS_Store
 .claude/
 scripts/cf_env.sh
+rust-router/target/
+rust-router/Cargo.lock
