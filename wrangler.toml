@@ -1,18 +1,15 @@
-# This file holds the live propspress.com deployment configuration. The IDs
-# below are real Cloudflare account/resource IDs but are NOT secrets -- they
-# only work when paired with a valid Cloudflare API token.
-#
-# Forking? Copy wrangler.toml.template -> wrangler.toml in your fork, then run
-# `scripts/materialize_wrangler.sh` after `refresh.sh bootstrap` provisions
-# resources in your own Cloudflare account.
-
-name = "hhapi"
+name = "open-distance"
 main = "src/index.ts"
 compatibility_date = "2026-06-01"
 account_id = "b5cdaad4db136b796354280697e0ceb9"
 
 [vars]
 DATA_VERSION = "2026-06"
+# L1 (motorway) highway overlay for long-haul cross-country routes
+# (NYC <-> LA-scale). Currently disabled: the 110 MB binary + 48 MB tile
+# LRU exceeds the 128 MB Worker isolate cap. Re-enable once the L1 loader
+# is rewritten to do zero-copy decode (Rust/WASM follow-up).
+L1_ENABLED = "0"
 
 # Rust-compiled WASM router. Built from rust-router/ via:
 #   cd rust-router && cargo build --release --target wasm32-unknown-unknown
@@ -25,269 +22,270 @@ fallthrough = true
 
 [[r2_buckets]]
 binding = "GRAPH"
-bucket_name = "hhapi-graph"
-
-[[d1_databases]]
-binding = "GEOCODE"
-database_name = "hhapi-geocode"
-database_id = "026b910d-9352-4c5e-974b-674a3f1b0510"
+bucket_name = "od-graph"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "f36df580b639463b85b337a0b2e9ab20"
+id = "8c011eddce57493896b1c1ac9a289db4"
+
+# Add a [[routes]] block per domain you want the Worker to serve.
+# The Hostname must be a zone in your CF account.
+[[routes]]
+pattern = "open-distance.com"
+custom_domain = true
 
 [[routes]]
 pattern = "hhapi.propspress.com"
 custom_domain = true
 
-[[routes]]
-pattern = "open-distance.com"
-custom_domain = true
-
 [limits]
 cpu_ms = 30000
 
+# Per-state D1 shards (one per US state + DC). The bootstrap step provisions
+# these and `scripts/materialize_wrangler.sh` substitutes each database_id.
+# Bindings are accessed dynamically by the Worker as env[`GEOCODE_${state}`].
+
 [[d1_databases]]
 binding = "GEOCODE_AL"
-database_name = "hhapi-geo-al"
-database_id = "078c31a4-51b0-4050-84b6-6545c1338c9c"
+database_name = "od-geo-al"
+database_id = "872db8b9-1d4c-4b18-b6a5-fcae54316f5d"
 
 [[d1_databases]]
 binding = "GEOCODE_AZ"
-database_name = "hhapi-geo-az"
-database_id = "211a2239-b5f7-48e3-b464-8ce597f97e4d"
+database_name = "od-geo-az"
+database_id = "ff0ea135-5816-4ee0-b7c2-b8b52f18548c"
 
 [[d1_databases]]
 binding = "GEOCODE_AR"
-database_name = "hhapi-geo-ar"
-database_id = "8f739d2b-50c7-42a6-979c-bf2eb86bd55d"
+database_name = "od-geo-ar"
+database_id = "2eddcaed-6487-4f15-b2ee-f1a15624a49e"
 
 [[d1_databases]]
 binding = "GEOCODE_CA"
-database_name = "hhapi-geo-ca"
-database_id = "49eaab16-4587-459a-adfc-8dabd6b1fa4d"
+database_name = "od-geo-ca"
+database_id = "f0766ad2-f5b1-47e5-8f9e-ef2232060117"
 
 [[d1_databases]]
 binding = "GEOCODE_CO"
-database_name = "hhapi-geo-co"
-database_id = "dd8f4318-09e0-46a1-84ae-015bd2005818"
+database_name = "od-geo-co"
+database_id = "29ddea59-615c-490c-a958-d5754c2fe385"
 
 [[d1_databases]]
 binding = "GEOCODE_CT"
-database_name = "hhapi-geo-ct"
-database_id = "781ff36a-a314-4559-858f-fca91b4dd14b"
+database_name = "od-geo-ct"
+database_id = "a0bfefbb-9e2b-4219-990b-27e4e881c90f"
 
 [[d1_databases]]
 binding = "GEOCODE_DE"
-database_name = "hhapi-geo-de"
-database_id = "377c25c3-fb5d-4c3a-b595-02ce1c5f0c01"
+database_name = "od-geo-de"
+database_id = "bfd80070-c81f-4fea-bd47-6a2553331e1d"
 
 [[d1_databases]]
 binding = "GEOCODE_DC"
-database_name = "hhapi-geo-dc"
-database_id = "89f19004-fb21-4481-b734-d67d41311710"
+database_name = "od-geo-dc"
+database_id = "d3ab742b-5216-4f5b-a925-605fb0841d0c"
 
 [[d1_databases]]
 binding = "GEOCODE_FL"
-database_name = "hhapi-geo-fl"
-database_id = "c0b42f28-4c2c-43d4-b595-af705e15cb7d"
+database_name = "od-geo-fl"
+database_id = "850559ec-9528-49f5-aefb-fa402e3392cb"
 
 [[d1_databases]]
 binding = "GEOCODE_GA"
-database_name = "hhapi-geo-ga"
-database_id = "ad548336-1f57-480a-9474-d6b2afc69c45"
+database_name = "od-geo-ga"
+database_id = "858f1515-4c14-4eee-aa90-7f297fe11717"
 
 [[d1_databases]]
 binding = "GEOCODE_ID"
-database_name = "hhapi-geo-id"
-database_id = "6bf28e82-0258-4bdb-b596-a65fa197afdb"
+database_name = "od-geo-id"
+database_id = "2c1e252b-6003-40a7-ae17-e6da87c20a57"
 
 [[d1_databases]]
 binding = "GEOCODE_IL"
-database_name = "hhapi-geo-il"
-database_id = "15067b8c-61f5-488a-9095-90f09cb3ff56"
+database_name = "od-geo-il"
+database_id = "18d7ae72-6b19-49cb-b816-1af844b404eb"
 
 [[d1_databases]]
 binding = "GEOCODE_IN"
-database_name = "hhapi-geo-in"
-database_id = "8f303b41-237c-41a7-881a-98b90861e9c8"
+database_name = "od-geo-in"
+database_id = "c8b4cd4e-a4a0-4f6f-ab5d-c87d38e690cd"
 
 [[d1_databases]]
 binding = "GEOCODE_IA"
-database_name = "hhapi-geo-ia"
-database_id = "17ede040-3ded-4ba8-9ad0-64b82073648b"
+database_name = "od-geo-ia"
+database_id = "ed4e2880-9327-45d9-a8f8-6fd4db31e1ab"
 
 [[d1_databases]]
 binding = "GEOCODE_KS"
-database_name = "hhapi-geo-ks"
-database_id = "570bf959-3fe7-46f8-9cad-572a75d8e898"
+database_name = "od-geo-ks"
+database_id = "3a5c4d66-5841-4189-becd-28ef8b7e6f2a"
 
 [[d1_databases]]
 binding = "GEOCODE_KY"
-database_name = "hhapi-geo-ky"
-database_id = "6488c90a-c67b-4b9d-8645-022ed2ff6c8e"
+database_name = "od-geo-ky"
+database_id = "2f0526f7-1066-4c5a-a4cb-0115c41fec4f"
 
 [[d1_databases]]
 binding = "GEOCODE_LA"
-database_name = "hhapi-geo-la"
-database_id = "68dfa309-4c2f-439c-a1b4-ce38dadc796b"
+database_name = "od-geo-la"
+database_id = "a6b1c993-2eda-49ea-8653-2aa84018acbb"
 
 [[d1_databases]]
 binding = "GEOCODE_ME"
-database_name = "hhapi-geo-me"
-database_id = "8b524919-ef9f-4291-ae2c-9cdf92eeecf8"
+database_name = "od-geo-me"
+database_id = "00cf2464-3107-4d6e-a0b0-be11f6019519"
 
 [[d1_databases]]
 binding = "GEOCODE_MD"
-database_name = "hhapi-geo-md"
-database_id = "d462a465-f6de-439b-8f69-90e8dcb1bc52"
+database_name = "od-geo-md"
+database_id = "e9cd31b1-4fb9-4884-8804-8d7cb78602b9"
 
 [[d1_databases]]
 binding = "GEOCODE_MA"
-database_name = "hhapi-geo-ma"
-database_id = "95ae8575-4f8f-415f-b9a0-0a09fe65cd74"
+database_name = "od-geo-ma"
+database_id = "4a093d6d-0ec2-45c1-935f-668e29c9a67f"
 
 [[d1_databases]]
 binding = "GEOCODE_MI"
-database_name = "hhapi-geo-mi"
-database_id = "19b36376-e0ee-43b0-8bff-a51c17b78ae6"
+database_name = "od-geo-mi"
+database_id = "a52b8a91-8ed8-4085-819d-fcd643e61102"
 
 [[d1_databases]]
 binding = "GEOCODE_MN"
-database_name = "hhapi-geo-mn"
-database_id = "73bb4cf1-a63c-431e-83de-2222b350c83a"
+database_name = "od-geo-mn"
+database_id = "ce7ea0bb-3baa-4225-bf99-e9d41519c234"
 
 [[d1_databases]]
 binding = "GEOCODE_MS"
-database_name = "hhapi-geo-ms"
-database_id = "004f50b4-f7f0-4e45-b69f-15810844ce79"
+database_name = "od-geo-ms"
+database_id = "a2ff04c7-b258-4a58-8e4b-ff979e8bac4b"
 
 [[d1_databases]]
 binding = "GEOCODE_MO"
-database_name = "hhapi-geo-mo"
-database_id = "b6935b30-782e-49a1-97c4-1bc62fa2affa"
+database_name = "od-geo-mo"
+database_id = "3d0c8fed-958d-4b7f-a2a7-44600b16f01a"
 
 [[d1_databases]]
 binding = "GEOCODE_MT"
-database_name = "hhapi-geo-mt"
-database_id = "43a7f7b2-67e0-40df-816d-0635f841e272"
+database_name = "od-geo-mt"
+database_id = "72686109-30c5-448a-87d9-758499ed287e"
 
 [[d1_databases]]
 binding = "GEOCODE_NE"
-database_name = "hhapi-geo-ne"
-database_id = "d83f4553-be49-47d6-b45d-191e2fc435ec"
+database_name = "od-geo-ne"
+database_id = "402c9e64-a95b-4f7d-b5a3-c6456791659b"
 
 [[d1_databases]]
 binding = "GEOCODE_NV"
-database_name = "hhapi-geo-nv"
-database_id = "570bccf4-682c-4d17-9323-ef237b3e8b0a"
+database_name = "od-geo-nv"
+database_id = "fedcf70a-0539-4f72-975e-a60d4eafef76"
 
 [[d1_databases]]
 binding = "GEOCODE_NH"
-database_name = "hhapi-geo-nh"
-database_id = "9e4438c0-33f8-4697-8e43-3121639a3c63"
+database_name = "od-geo-nh"
+database_id = "8c31d4ba-156a-4f8f-a0c4-73f31318b5fc"
 
 [[d1_databases]]
 binding = "GEOCODE_NJ"
-database_name = "hhapi-geo-nj"
-database_id = "bd072c50-4ac7-45db-8ef7-bf766d0c3d95"
+database_name = "od-geo-nj"
+database_id = "d2d2077c-a1e5-4d8b-9411-c5c6d70801e3"
 
 [[d1_databases]]
 binding = "GEOCODE_NM"
-database_name = "hhapi-geo-nm"
-database_id = "64af515e-a991-4789-857d-202ebb463c8b"
+database_name = "od-geo-nm"
+database_id = "d96eeca0-36e3-4964-9fc4-8dace011585e"
 
 [[d1_databases]]
 binding = "GEOCODE_NY"
-database_name = "hhapi-geo-ny"
-database_id = "2a78e120-4dd2-42c2-8f2c-50bd73f6883e"
+database_name = "od-geo-ny"
+database_id = "ebe04860-fcbc-4b99-acc1-4b8e37c538db"
 
 [[d1_databases]]
 binding = "GEOCODE_NC"
-database_name = "hhapi-geo-nc"
-database_id = "620fd42a-5c01-4e97-9122-ab7be829d9ab"
+database_name = "od-geo-nc"
+database_id = "36afc75b-7145-4a20-bb3c-d8cd693e6d36"
 
 [[d1_databases]]
 binding = "GEOCODE_ND"
-database_name = "hhapi-geo-nd"
-database_id = "debdd214-8e0c-4836-ad30-334ab9aabe40"
+database_name = "od-geo-nd"
+database_id = "3559dbbc-c64e-42af-b573-bb3e30d2bd9e"
 
 [[d1_databases]]
 binding = "GEOCODE_OH"
-database_name = "hhapi-geo-oh"
-database_id = "eb45fe03-c461-4dca-9bbb-bf50aa2ebdf3"
+database_name = "od-geo-oh"
+database_id = "1900f302-f797-4a55-af0c-656b9e6c9d46"
 
 [[d1_databases]]
 binding = "GEOCODE_OK"
-database_name = "hhapi-geo-ok"
-database_id = "2be8009b-1514-4ab4-b5eb-63ecb50389bb"
+database_name = "od-geo-ok"
+database_id = "47343557-9795-4da2-a01d-3e50f5e24146"
 
 [[d1_databases]]
 binding = "GEOCODE_OR"
-database_name = "hhapi-geo-or"
-database_id = "9a9c124b-013a-4789-9c86-3feb2f8d42f2"
+database_name = "od-geo-or"
+database_id = "f5a426ee-f128-4210-af88-c4713cb1145e"
 
 [[d1_databases]]
 binding = "GEOCODE_PA"
-database_name = "hhapi-geo-pa"
-database_id = "05eed677-b0b4-4375-a97c-ab8deea7666a"
+database_name = "od-geo-pa"
+database_id = "86f0d8db-f7a7-4abf-bf1c-e329a111fd34"
 
 [[d1_databases]]
 binding = "GEOCODE_RI"
-database_name = "hhapi-geo-ri"
-database_id = "b30cdb1b-b51b-46da-90b6-15428b76fb11"
+database_name = "od-geo-ri"
+database_id = "3a445ace-2e17-4b5e-9ab3-c7cd952b3fac"
 
 [[d1_databases]]
 binding = "GEOCODE_SC"
-database_name = "hhapi-geo-sc"
-database_id = "a72aba3e-b136-452f-9f0b-85a2c3adbef0"
+database_name = "od-geo-sc"
+database_id = "88d98966-c0d8-48a3-b098-6135123f443d"
 
 [[d1_databases]]
 binding = "GEOCODE_SD"
-database_name = "hhapi-geo-sd"
-database_id = "f18e231d-fc48-4731-8a33-30cc4d56e14d"
+database_name = "od-geo-sd"
+database_id = "d510fdac-703b-4744-a6c9-bdb14f1ed3e8"
 
 [[d1_databases]]
 binding = "GEOCODE_TN"
-database_name = "hhapi-geo-tn"
-database_id = "e0a64ebd-feac-46e6-9c9c-a4e2c8a4681d"
+database_name = "od-geo-tn"
+database_id = "f94bd6f1-9ea0-43ec-8435-33a59b9eeca2"
 
 [[d1_databases]]
 binding = "GEOCODE_TX"
-database_name = "hhapi-geo-tx"
-database_id = "ececcced-3089-4f35-b882-eac2221876c8"
+database_name = "od-geo-tx"
+database_id = "b474726c-2b02-4b52-9a9e-1f728ccf8d6e"
 
 [[d1_databases]]
 binding = "GEOCODE_UT"
-database_name = "hhapi-geo-ut"
-database_id = "f235f7b9-00d5-4cac-9320-457decf747e7"
+database_name = "od-geo-ut"
+database_id = "b3409ea6-3ad3-4429-92e4-a878ca9bfcb2"
 
 [[d1_databases]]
 binding = "GEOCODE_VT"
-database_name = "hhapi-geo-vt"
-database_id = "46efae30-7bb1-45d3-b3b0-baaf9166886b"
+database_name = "od-geo-vt"
+database_id = "c6ace339-d348-4c73-b771-9e881122ac7c"
 
 [[d1_databases]]
 binding = "GEOCODE_VA"
-database_name = "hhapi-geo-va"
-database_id = "155e8389-2a52-4a4e-8583-5b5d4eeb53f5"
+database_name = "od-geo-va"
+database_id = "8c625ef7-524d-4f2d-99d1-fddb8d2fddd0"
 
 [[d1_databases]]
 binding = "GEOCODE_WA"
-database_name = "hhapi-geo-wa"
-database_id = "4985cd3f-2eb1-4f30-a9c4-739591c7f96d"
+database_name = "od-geo-wa"
+database_id = "9cb85cf5-5a85-40f0-9df2-eb3a480d59a8"
 
 [[d1_databases]]
 binding = "GEOCODE_WV"
-database_name = "hhapi-geo-wv"
-database_id = "be89cf0c-ec2b-4487-9363-8e62e81e7572"
+database_name = "od-geo-wv"
+database_id = "4e2c3614-214d-4f18-b929-3aaeb6386b4c"
 
 [[d1_databases]]
 binding = "GEOCODE_WI"
-database_name = "hhapi-geo-wi"
-database_id = "88f37f40-f911-42ea-88e8-47e810cf6540"
+database_name = "od-geo-wi"
+database_id = "1dd3a893-5ca3-492b-af5a-95fb849318e0"
 
 [[d1_databases]]
 binding = "GEOCODE_WY"
-database_name = "hhapi-geo-wy"
-database_id = "cb22b2b6-d0b5-4241-9ada-9ea6894bf60b"
+database_name = "od-geo-wy"
+database_id = "fc52aff8-bb3b-4472-b93f-a88982926416"
