@@ -80,8 +80,8 @@ secrets (Settings → Secrets and variables → Actions):
 
 The data-refresh pipeline (`./refresh.sh all`) is **not** wired into Actions:
 it downloads ~50 GB and runs for hours, which doesn't fit GitHub's default
-runner disk/budget. Run it on your own machine or a self-hosted runner; the
-spec recommends a monthly cadence.
+runner disk/budget. Run it on your own machine or a self-hosted runner;
+monthly is a reasonable cadence.
 
 ## License
 

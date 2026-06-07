@@ -100,7 +100,7 @@ extra arrays surfacing geocode confidence:
 - Cross-region routes (SF↔LA, NYC↔Boston, Atlanta↔Miami) work via weighted A*
   (k=1.5 heuristic over haversine / 30 m/s). True cross-country routes
   (NYC↔LA-scale) may still hit the 2M-node settled cap → `ZERO_RESULTS`;
-  the L1 highway overlay (milepost spec Phase 2) is the future fix.
+  the L1 highway overlay is the fix.
 - Successful Distance Matrix responses send
   `Cache-Control: public, max-age=3600` — identical queries are absorbed by
   Cloudflare's edge cache for the house-hunting consumer loop.
@@ -131,8 +131,9 @@ scripts/materialize_wrangler.sh   # substitutes IDs into wrangler.toml from the 
 ```
 
 The first `./refresh.sh all` is long — several hours of downloads (~50 GB
-of source data) plus several hours of build CPU. Subsequent monthly refreshes
-are similar (the spec calls for a monthly cadence to pick up address updates).
+of source data) plus several hours of build CPU. Subsequent refreshes are
+similar; monthly is a reasonable cadence to pick up address updates from
+upstream sources.
 You can also restrict to a single state for development: `./refresh.sh all CA`.
 
 Individual stages (resumable, idempotent):

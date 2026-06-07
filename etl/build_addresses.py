@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Build addresses.csv from OSM addr:* tags within the Bay Area PBF.
 
-For v1 (Bay Area test) we pull addresses from the same bbox-clipped OSM PBF
-the road graph uses. Only addr-tagged nodes are emitted (the simple, robust
-path that doesn't depend on area assembly). For US-wide scale-up, swap this
-for NAD + TIGER per milepost-routing-api-spec.md §13.
+v1 path (Bay Area only): pulls addresses from the same bbox-clipped OSM PBF
+the road graph uses. Only addr-tagged nodes are emitted -- the simple, robust
+path that doesn't depend on area assembly. Superseded by the v2 pipeline in
+etl/v2/, which blends NAD + OpenAddresses + OSM + TIGER for US-wide coverage.
 
 Output schema: id,normalized,lat,lon
 """

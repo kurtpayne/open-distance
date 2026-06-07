@@ -151,9 +151,10 @@ stage_tiles() {
 }
 
 stage_overlay() {
-  # TODO: L1 highway overlay (milepost spec Phase 2). L0-only routes today work
-  # everywhere; long-haul cross-country routes are slower than they need to be
-  # without an overlay. Not on the v2-ship critical path.
+  # TODO: L1 highway overlay. L0-only routes work everywhere today, but
+  # long-haul cross-country routes are slower than they need to be without
+  # an overlay. L1 build is in etl/v2/build_overlay.py; this stage will
+  # invoke it once it's wired into refresh-time.
   log "overlay: skipped (L0-only ship; L1 is future work)"
 }
 

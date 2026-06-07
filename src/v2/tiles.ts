@@ -78,7 +78,9 @@ function decode(buf: ArrayBuffer): Tile {
 // Isolate-global LRU cache. Decoded tiles share isolate memory.
 // ---------------------------------------------------------------------------
 
-const TILE_CACHE_BYTE_BUDGET = 48 * 1024 * 1024; // 48 MB per milepost spec
+// Tile LRU budget. Workers isolate is 128 MB; this leaves headroom for L1
+// overlay (~115 MB peaks under load) and request/heap.
+const TILE_CACHE_BYTE_BUDGET = 48 * 1024 * 1024;
 
 let cache: Map<number, Tile> = new Map();   // insertion-order LRU
 let pending: Map<number, Promise<Tile>> = new Map();
