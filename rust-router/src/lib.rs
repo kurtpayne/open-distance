@@ -264,6 +264,290 @@ pub fn astar_intra_tile(tile: &TileView, src: u32, dst: u32, settled_cap: u32)
 }
 
 // ---------------------------------------------------------------------------
+// L1 national highway overlay. Binary layout (see etl/v2/build_overlay.py):
+//
+//   magic[4]                = "HHL1"
+//   u32 fmt_ver
+//   u32 n_nodes
+//   u32 m_edges
+//   i32 grid_min_lat_e7, grid_min_lon_e7
+//   u32 grid_n_lat, grid_n_lon
+//   u32 cell_size_e5
+//   u32 reserved
+//   f32 lat[n_nodes]
+//   f32 lon[n_nodes]
+//   u32 edge_offsets[n_nodes + 1]
+//   u32 edge_targets[m_edges]
+//   f32 edge_time_s[m_edges]
+//   f32 edge_len_m[m_edges]
+//   u32 grid_offsets[grid_n_lat * grid_n_lon + 1]
+//   u32 grid_node_ids[n_nodes]
+//
+// Forward-only A* (bidir's reverse CSR would double the module-resident
+// memory and we don't have the budget). Sparse HashMap for the dist/settled
+// state so per-request memory scales with settled count, not n_nodes.
+// ---------------------------------------------------------------------------
+
+const L1_MAGIC: u32 = 0x3149_4848; // "HHL1" little-endian
+
+pub struct L1View<'a> {
+    pub n_nodes: u32,
+    pub m_edges: u32,
+    pub grid_min_lat: f32,
+    pub grid_min_lon: f32,
+    pub grid_n_lat: u32,
+    pub grid_n_lon: u32,
+    pub grid_cell_deg: f32,
+    bytes: &'a [u8],
+    off_lat: usize,
+    off_lon: usize,
+    off_edge_offsets: usize,
+    off_edge_targets: usize,
+    off_edge_time_s: usize,
+    off_edge_len_m: usize,
+    off_grid_offsets: usize,
+    off_grid_node_ids: usize,
+}
+
+impl<'a> L1View<'a> {
+    pub fn decode(bytes: &'a [u8]) -> Option<L1View<'a>> {
+        if bytes.len() < 40 { return None; }
+        let magic = u32::from_le_bytes(bytes[0..4].try_into().ok()?);
+        if magic != L1_MAGIC { return None; }
+        // bytes[4..8] = fmt_ver
+        let n_nodes = u32::from_le_bytes(bytes[8..12].try_into().ok()?);
+        let m_edges = u32::from_le_bytes(bytes[12..16].try_into().ok()?);
+        let grid_min_lat_e7 = i32::from_le_bytes(bytes[16..20].try_into().ok()?);
+        let grid_min_lon_e7 = i32::from_le_bytes(bytes[20..24].try_into().ok()?);
+        let grid_n_lat = u32::from_le_bytes(bytes[24..28].try_into().ok()?);
+        let grid_n_lon = u32::from_le_bytes(bytes[28..32].try_into().ok()?);
+        let cell_size_e5 = u32::from_le_bytes(bytes[32..36].try_into().ok()?);
+        // bytes[36..40] = reserved
+
+        let nn = n_nodes as usize;
+        let me = m_edges as usize;
+        let grid_total = (grid_n_lat as usize) * (grid_n_lon as usize);
+
+        let mut p = 40;
+        let off_lat = p;            p += nn * 4;
+        let off_lon = p;            p += nn * 4;
+        let off_edge_offsets = p;   p += (nn + 1) * 4;
+        let off_edge_targets = p;   p += me * 4;
+        let off_edge_time_s = p;    p += me * 4;
+        let off_edge_len_m = p;     p += me * 4;
+        let off_grid_offsets = p;   p += (grid_total + 1) * 4;
+        let off_grid_node_ids = p;  p += nn * 4;
+        if p > bytes.len() { return None; }
+
+        Some(L1View {
+            n_nodes, m_edges,
+            grid_min_lat: grid_min_lat_e7 as f32 / 1.0e7,
+            grid_min_lon: grid_min_lon_e7 as f32 / 1.0e7,
+            grid_n_lat, grid_n_lon,
+            grid_cell_deg: cell_size_e5 as f32 / 1.0e5,
+            bytes,
+            off_lat, off_lon,
+            off_edge_offsets, off_edge_targets, off_edge_time_s, off_edge_len_m,
+            off_grid_offsets, off_grid_node_ids,
+        })
+    }
+
+    #[inline] fn read_u32(&self, off: usize) -> u32 {
+        u32::from_le_bytes(self.bytes[off..off + 4].try_into().unwrap_or([0; 4]))
+    }
+    #[inline] fn read_f32(&self, off: usize) -> f32 {
+        f32::from_le_bytes(self.bytes[off..off + 4].try_into().unwrap_or([0; 4]))
+    }
+    #[inline] pub fn lat(&self, node: u32) -> f32 { self.read_f32(self.off_lat + (node as usize) * 4) }
+    #[inline] pub fn lon(&self, node: u32) -> f32 { self.read_f32(self.off_lon + (node as usize) * 4) }
+    #[inline] fn edge_range(&self, node: u32) -> (u32, u32) {
+        let n = node as usize;
+        (self.read_u32(self.off_edge_offsets + n * 4),
+         self.read_u32(self.off_edge_offsets + (n + 1) * 4))
+    }
+    #[inline] fn edge_target(&self, e: u32) -> u32 { self.read_u32(self.off_edge_targets + (e as usize) * 4) }
+    #[inline] fn edge_time_s(&self, e: u32) -> f32 { self.read_f32(self.off_edge_time_s + (e as usize) * 4) }
+    #[inline] fn edge_len_m(&self, e: u32) -> f32  { self.read_f32(self.off_edge_len_m  + (e as usize) * 4) }
+    #[inline] fn grid_range(&self, cell: u32) -> (u32, u32) {
+        let c = cell as usize;
+        (self.read_u32(self.off_grid_offsets + c * 4),
+         self.read_u32(self.off_grid_offsets + (c + 1) * 4))
+    }
+    #[inline] fn grid_node(&self, i: u32) -> u32 {
+        self.read_u32(self.off_grid_node_ids + (i as usize) * 4)
+    }
+
+    /// Snap a (lat, lon) to the nearest L1 node via the spatial grid. Expands
+    /// outward up to `max_radius` cells. Returns (node_id, dist_m) or None.
+    pub fn snap(&self, lat: f32, lon: f32, max_radius: i32) -> Option<(u32, f32)> {
+        if self.n_nodes == 0 { return None; }
+        let cy0 = ((lat - self.grid_min_lat) / self.grid_cell_deg).floor() as i32;
+        let cx0 = ((lon - self.grid_min_lon) / self.grid_cell_deg).floor() as i32;
+        let mut best: Option<(u32, f32)> = None;
+        for r in 0..=max_radius {
+            let y_min = (cy0 - r).max(0);
+            let y_max = (cy0 + r).min(self.grid_n_lat as i32 - 1);
+            let x_min = (cx0 - r).max(0);
+            let x_max = (cx0 + r).min(self.grid_n_lon as i32 - 1);
+            for y in y_min..=y_max {
+                for x in x_min..=x_max {
+                    if r > 0 && y != y_min && y != y_max && x != x_min && x != x_max { continue; }
+                    let cell = (y as u32) * self.grid_n_lon + (x as u32);
+                    let (s, e) = self.grid_range(cell);
+                    for i in s..e {
+                        let node = self.grid_node(i);
+                        let d = haversine_m(lat, lon, self.lat(node), self.lon(node));
+                        if best.map_or(true, |(_, bd)| d < bd) {
+                            best = Some((node, d));
+                        }
+                    }
+                }
+            }
+            if best.is_some() { return best; }
+        }
+        None
+    }
+}
+
+#[derive(PartialEq)]
+struct L1HeapNode { f: f32, g_time: f32, g_len: f32, node: u32 }
+impl Eq for L1HeapNode {}
+impl Ord for L1HeapNode {
+    fn cmp(&self, o: &Self) -> Ordering { o.f.partial_cmp(&self.f).unwrap_or(Ordering::Equal) }
+}
+impl PartialOrd for L1HeapNode {
+    fn partial_cmp(&self, o: &Self) -> Option<Ordering> { Some(self.cmp(o)) }
+}
+
+/// Forward A* over the L1 overlay. Sparse HashMap state so memory scales with
+/// settled count -- ~24 bytes per visited node, vs the 36 MB of dense arrays
+/// the TS implementation needed for the same N=4M graph.
+pub fn forward_astar_l1(
+    l1: &L1View<'_>,
+    src: u32,
+    dst: u32,
+    settled_cap: u32,
+) -> (f32, f32, u32) {
+    if src == dst { return (0.0, 0.0, 0); }
+    if src >= l1.n_nodes || dst >= l1.n_nodes {
+        return (f32::NAN, f32::NAN, 0);
+    }
+    let dst_lat = l1.lat(dst);
+    let dst_lon = l1.lon(dst);
+
+    let mut g_time: HashMap<u32, f32> = HashMap::new();
+    let mut g_len: HashMap<u32, f32> = HashMap::new();
+    let mut settled: HashMap<u32, bool> = HashMap::new();
+    g_time.insert(src, 0.0);
+    g_len.insert(src, 0.0);
+
+    let mut heap = BinaryHeap::<L1HeapNode>::new();
+    let h0 = ASTAR_WEIGHT_K
+        * haversine_m(l1.lat(src), l1.lon(src), dst_lat, dst_lon)
+        / MAX_SPEED_M_PER_S;
+    heap.push(L1HeapNode { f: h0, g_time: 0.0, g_len: 0.0, node: src });
+
+    let mut settled_count: u32 = 0;
+    while let Some(cur) = heap.pop() {
+        if settled.get(&cur.node).copied().unwrap_or(false) { continue; }
+        settled.insert(cur.node, true);
+        settled_count += 1;
+        if cur.node == dst {
+            return (cur.g_time, cur.g_len, settled_count);
+        }
+        if settled_count >= settled_cap { break; }
+
+        let (estart, eend) = l1.edge_range(cur.node);
+        for e in estart..eend {
+            let v = l1.edge_target(e);
+            if v >= l1.n_nodes { continue; }
+            if settled.get(&v).copied().unwrap_or(false) { continue; }
+            let nd = cur.g_time + l1.edge_time_s(e);
+            let prev_g = *g_time.get(&v).unwrap_or(&f32::INFINITY);
+            if nd < prev_g {
+                g_time.insert(v, nd);
+                let new_len = cur.g_len + l1.edge_len_m(e);
+                g_len.insert(v, new_len);
+                let h = ASTAR_WEIGHT_K
+                    * haversine_m(l1.lat(v), l1.lon(v), dst_lat, dst_lon)
+                    / MAX_SPEED_M_PER_S;
+                heap.push(L1HeapNode { f: nd + h, g_time: nd, g_len: new_len, node: v });
+            }
+        }
+    }
+    (f32::NAN, f32::NAN, settled_count)
+}
+
+// ---------------------------------------------------------------------------
+// L1 FFI. ABI:
+//   Input layout in linear memory:
+//     [0..4]    src_lat (f32)
+//     [4..8]    src_lon (f32)
+//     [8..12]   dst_lat (f32)
+//     [12..16]  dst_lon (f32)
+//     [16..20]  settled_cap (u32)
+//     [20..24]  l1_byte_len (u32)
+//     [24..]    L1 binary
+//   Output layout (28 bytes):
+//     [0..4]    time_s (f32, NaN on failure)
+//     [4..8]    len_m  (f32, NaN on failure)
+//     [8..12]   settled_count (u32)
+//     [12..16]  src_node (u32)        -- which L1 node we snapped to
+//     [16..20]  dst_node (u32)
+//     [20..24]  src_snap_dist_m (f32) -- meters from src lat/lon to src_node
+//     [24..28]  dst_snap_dist_m (f32)
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn od_l1_route(
+    args_ptr: *const u8,
+    args_len: usize,
+    result_ptr: *mut u8,
+) -> u32 {
+    if args_ptr.is_null() || result_ptr.is_null() || args_len < 24 { return 0; }
+    let args = std::slice::from_raw_parts(args_ptr, args_len);
+    let src_lat = f32::from_le_bytes(args[0..4].try_into().unwrap());
+    let src_lon = f32::from_le_bytes(args[4..8].try_into().unwrap());
+    let dst_lat = f32::from_le_bytes(args[8..12].try_into().unwrap());
+    let dst_lon = f32::from_le_bytes(args[12..16].try_into().unwrap());
+    let cap = u32::from_le_bytes(args[16..20].try_into().unwrap());
+    let l1_len = u32::from_le_bytes(args[20..24].try_into().unwrap()) as usize;
+    if 24 + l1_len > args.len() { return 0; }
+    let Some(l1) = L1View::decode(&args[24..24 + l1_len]) else { return 0; };
+
+    let out = std::slice::from_raw_parts_mut(result_ptr, 28);
+    let Some((src_node, src_d)) = l1.snap(src_lat, src_lon, 10) else {
+        out[0..4].copy_from_slice(&f32::NAN.to_le_bytes());
+        out[4..8].copy_from_slice(&f32::NAN.to_le_bytes());
+        out[8..12].copy_from_slice(&0u32.to_le_bytes());
+        out[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
+        out[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
+        out[20..24].copy_from_slice(&f32::NAN.to_le_bytes());
+        out[24..28].copy_from_slice(&f32::NAN.to_le_bytes());
+        return 1;
+    };
+    let Some((dst_node, dst_d)) = l1.snap(dst_lat, dst_lon, 10) else {
+        out[0..4].copy_from_slice(&f32::NAN.to_le_bytes());
+        out[4..8].copy_from_slice(&f32::NAN.to_le_bytes());
+        out[8..12].copy_from_slice(&0u32.to_le_bytes());
+        out[12..16].copy_from_slice(&src_node.to_le_bytes());
+        out[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
+        out[20..24].copy_from_slice(&src_d.to_le_bytes());
+        out[24..28].copy_from_slice(&f32::NAN.to_le_bytes());
+        return 1;
+    };
+    let (time_s, len_m, settled) = forward_astar_l1(&l1, src_node, dst_node, cap);
+    out[0..4].copy_from_slice(&time_s.to_le_bytes());
+    out[4..8].copy_from_slice(&len_m.to_le_bytes());
+    out[8..12].copy_from_slice(&settled.to_le_bytes());
+    out[12..16].copy_from_slice(&src_node.to_le_bytes());
+    out[16..20].copy_from_slice(&dst_node.to_le_bytes());
+    out[20..24].copy_from_slice(&src_d.to_le_bytes());
+    out[24..28].copy_from_slice(&dst_d.to_le_bytes());
+    1
+}
+
+// ---------------------------------------------------------------------------
 // Multi-tile A*. Routes across cross-tile edges using the extern arrays.
 //
 // State key: packed (tile_id, dense) into a u64. Distances tracked in a
@@ -389,6 +673,179 @@ pub fn astar_multi_tile(
         }
     }
     (f32::NAN, f32::NAN, settled_count)
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tile Dijkstra ONE-TO-MANY. The actual hot path for Distance Matrix
+// requests (1 origin x N destinations). A single Dijkstra traversal covers
+// every destination; we record its (time_s, len_m) when first settled.
+// ---------------------------------------------------------------------------
+
+#[derive(PartialEq)]
+struct DijkstraHeapNode { g_time: f32, g_len: f32, state: u64 }
+impl Eq for DijkstraHeapNode {}
+impl Ord for DijkstraHeapNode {
+    // Min-heap on g_time (Dijkstra; no heuristic).
+    fn cmp(&self, o: &Self) -> Ordering {
+        o.g_time.partial_cmp(&self.g_time).unwrap_or(Ordering::Equal)
+    }
+}
+impl PartialOrd for DijkstraHeapNode {
+    fn partial_cmp(&self, o: &Self) -> Option<Ordering> { Some(self.cmp(o)) }
+}
+
+/// Multi-tile Dijkstra from one source to many destinations. For each (dst_i)
+/// we write (time_s_i, len_m_i) into `results` (NaN if never reached within
+/// settled_cap). Returns the total settled count.
+///
+/// Terminates early when all destinations have been reached.
+pub fn dijkstra_multi_tile_one_to_many(
+    tiles: &HashMap<u32, TileView<'_>>,
+    src_tile: u32, src_dense: u32,
+    dsts: &[(u32, u32)],
+    settled_cap: u32,
+    results: &mut [(f32, f32)],
+) -> u32 {
+    // Initialize all results to NaN.
+    for r in results.iter_mut() { *r = (f32::NAN, f32::NAN); }
+    if dsts.is_empty() { return 0; }
+    let Some(src_t) = tiles.get(&src_tile) else { return 0; };
+    if src_dense >= src_t.n_local { return 0; }
+
+    // Targets: map state -> index into results.
+    let mut target_idx: HashMap<u64, usize> = HashMap::with_capacity(dsts.len());
+    for (i, &(t, d)) in dsts.iter().enumerate() {
+        target_idx.insert(pack_state(t, d), i);
+    }
+    let mut remaining = dsts.len();
+
+    let mut g_time: HashMap<u64, f32> = HashMap::new();
+    let mut settled: HashMap<u64, bool> = HashMap::new();
+    let src_state = pack_state(src_tile, src_dense);
+    g_time.insert(src_state, 0.0);
+
+    let mut heap = BinaryHeap::<DijkstraHeapNode>::new();
+    heap.push(DijkstraHeapNode { g_time: 0.0, g_len: 0.0, state: src_state });
+
+    // If src is itself a destination, record (0, 0) and decrement remaining.
+    if let Some(&i) = target_idx.get(&src_state) {
+        results[i] = (0.0, 0.0);
+        remaining = remaining.saturating_sub(1);
+    }
+
+    let mut settled_count: u32 = 0;
+    while let Some(cur) = heap.pop() {
+        if settled.get(&cur.state).copied().unwrap_or(false) { continue; }
+        settled.insert(cur.state, true);
+        settled_count += 1;
+
+        if let Some(&i) = target_idx.get(&cur.state) {
+            if results[i].0.is_nan() {
+                results[i] = (cur.g_time, cur.g_len);
+                remaining = remaining.saturating_sub(1);
+                if remaining == 0 { return settled_count; }
+            }
+        }
+        if settled_count >= settled_cap { break; }
+
+        let cur_tile_id = (cur.state >> 32) as u32;
+        let cur_dense = (cur.state & 0xffff_ffff) as u32;
+        let Some(tile) = tiles.get(&cur_tile_id) else { continue; };
+        if cur_dense >= tile.n_local { continue; }
+
+        let (estart, eend) = tile.edge_range(cur_dense);
+        for e in estart..eend {
+            let target = tile.edge_target(e);
+            let (nxt_tile_id, nxt_dense) = if target < tile.n_local {
+                (cur_tile_id, target)
+            } else {
+                tile.resolve_extern(target)
+            };
+            if !tiles.contains_key(&nxt_tile_id) { continue; }
+            let nxt_state = pack_state(nxt_tile_id, nxt_dense);
+            if settled.get(&nxt_state).copied().unwrap_or(false) { continue; }
+
+            let new_g = cur.g_time + tile.edge_time_s(e);
+            let prev_g = *g_time.get(&nxt_state).unwrap_or(&f32::INFINITY);
+            if new_g < prev_g {
+                g_time.insert(nxt_state, new_g);
+                heap.push(DijkstraHeapNode {
+                    g_time: new_g,
+                    g_len: cur.g_len + tile.edge_len_m(e),
+                    state: nxt_state,
+                });
+            }
+        }
+    }
+    settled_count
+}
+
+// ---------------------------------------------------------------------------
+// One-to-many FFI. Args layout:
+//   [0..4]    src_tile_id
+//   [4..8]    src_dense
+//   [8..12]   settled_cap
+//   [12..16]  n_dsts
+//   [16..20]  n_tiles
+//   [20..]    n_dsts * (dst_tile_id: u32, dst_dense: u32)
+//   [...]     n_tiles * (tile_id: u32, byte_off: u32, byte_len: u32)
+//   [...]     concatenated tile bytes
+// Result buffer must be (n_dsts * 8) bytes; entries are (f32 time_s, f32 len_m).
+// Return value = settled count from the Dijkstra run.
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn od_dijkstra_one_to_many(
+    args_ptr: *const u8,
+    args_len: usize,
+    result_ptr: *mut u8,
+    result_len: usize,
+) -> u32 {
+    if args_ptr.is_null() || result_ptr.is_null() || args_len < 20 { return 0; }
+    let args = std::slice::from_raw_parts(args_ptr, args_len);
+    let src_tile = u32::from_le_bytes(args[0..4].try_into().unwrap());
+    let src_dense = u32::from_le_bytes(args[4..8].try_into().unwrap());
+    let cap = u32::from_le_bytes(args[8..12].try_into().unwrap());
+    let n_dsts = u32::from_le_bytes(args[12..16].try_into().unwrap()) as usize;
+    let n_tiles = u32::from_le_bytes(args[16..20].try_into().unwrap()) as usize;
+    if result_len < n_dsts * 8 { return 0; }
+
+    let dsts_off = 20;
+    let dsts_bytes = n_dsts * 8;
+    let tiles_manifest_off = dsts_off + dsts_bytes;
+    let tiles_manifest_bytes = n_tiles * 12;
+    if tiles_manifest_off + tiles_manifest_bytes > args.len() { return 0; }
+
+    let mut dsts: Vec<(u32, u32)> = Vec::with_capacity(n_dsts);
+    for i in 0..n_dsts {
+        let off = dsts_off + i * 8;
+        let tile_id = u32::from_le_bytes(args[off..off + 4].try_into().unwrap());
+        let dense = u32::from_le_bytes(args[off + 4..off + 8].try_into().unwrap());
+        dsts.push((tile_id, dense));
+    }
+
+    let mut tiles: HashMap<u32, TileView<'_>> = HashMap::with_capacity(n_tiles);
+    for i in 0..n_tiles {
+        let off = tiles_manifest_off + i * 12;
+        let tile_id = u32::from_le_bytes(args[off..off + 4].try_into().unwrap());
+        let byte_off = u32::from_le_bytes(args[off + 4..off + 8].try_into().unwrap()) as usize;
+        let byte_len = u32::from_le_bytes(args[off + 8..off + 12].try_into().unwrap()) as usize;
+        if byte_off + byte_len > args.len() { return 0; }
+        if let Some(tv) = TileView::decode(&args[byte_off..byte_off + byte_len]) {
+            tiles.insert(tile_id, tv);
+        }
+    }
+
+    let mut results: Vec<(f32, f32)> = vec![(f32::NAN, f32::NAN); n_dsts];
+    let settled = dijkstra_multi_tile_one_to_many(&tiles, src_tile, src_dense, &dsts, cap, &mut results);
+
+    let out = std::slice::from_raw_parts_mut(result_ptr, n_dsts * 8);
+    for (i, &(t, l)) in results.iter().enumerate() {
+        let o = i * 8;
+        out[o..o + 4].copy_from_slice(&t.to_le_bytes());
+        out[o + 4..o + 8].copy_from_slice(&l.to_le_bytes());
+    }
+    settled
 }
 
 // ---------------------------------------------------------------------------
@@ -645,6 +1102,75 @@ mod tests {
         assert!((time_s - 15.0).abs() < 1e-3, "time_s={}", time_s);
         assert!((len_m - 150.0).abs() < 1e-3, "len_m={}", len_m);
         assert!(settled >= 2, "settled={}", settled);
+    }
+
+    /// Build a tiny L1 binary by hand: 3 nodes in a line, single grid cell.
+    /// 0 -> 1 (100m / 10s), 1 -> 2 (200m / 20s). Tests decode + snap + A*.
+    fn synthetic_l1() -> Vec<u8> {
+        let n: u32 = 3; let m: u32 = 2;
+        let mut buf = Vec::<u8>::new();
+        buf.extend_from_slice(&L1_MAGIC.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());      // fmt_ver
+        buf.extend_from_slice(&n.to_le_bytes());
+        buf.extend_from_slice(&m.to_le_bytes());
+        // grid_min_lat / lon in e7, then grid dims, cell size in e5
+        buf.extend_from_slice(&(370_000_000i32).to_le_bytes());  // 37.0
+        buf.extend_from_slice(&(-1_220_000_000i32).to_le_bytes());// -122.0
+        buf.extend_from_slice(&1u32.to_le_bytes());      // grid_n_lat
+        buf.extend_from_slice(&1u32.to_le_bytes());      // grid_n_lon
+        buf.extend_from_slice(&25_000u32.to_le_bytes()); // cell_size_e5 = 0.25 deg
+        buf.extend_from_slice(&0u32.to_le_bytes());      // reserved
+        // lats / lons
+        for v in [37.0f32, 37.0, 37.0] { buf.extend_from_slice(&v.to_le_bytes()); }
+        for v in [-122.0f32, -121.999, -121.998] { buf.extend_from_slice(&v.to_le_bytes()); }
+        // edge_offsets
+        for v in [0u32, 1, 2, 2] { buf.extend_from_slice(&v.to_le_bytes()); }
+        // edge_targets, time_s, len_m
+        for v in [1u32, 2] { buf.extend_from_slice(&v.to_le_bytes()); }
+        for v in [10.0f32, 20.0] { buf.extend_from_slice(&v.to_le_bytes()); }
+        for v in [100.0f32, 200.0] { buf.extend_from_slice(&v.to_le_bytes()); }
+        // grid_offsets (1 cell -> 2 entries: 0, n)
+        for v in [0u32, 3] { buf.extend_from_slice(&v.to_le_bytes()); }
+        // grid_node_ids
+        for v in [0u32, 1, 2] { buf.extend_from_slice(&v.to_le_bytes()); }
+        buf
+    }
+
+    #[test]
+    fn one_to_many_finds_multiple_dsts() {
+        // Same 3-node line tile as the intra-tile test: 0 -- 1 -- 2.
+        let buf = synthetic_tile();
+        let tv = TileView::decode(&buf).unwrap();
+        let mut tiles: HashMap<u32, TileView<'_>> = HashMap::new();
+        let id = tv.packed_id();
+        tiles.insert(id, tv);
+        // Two destinations: node 1 (close) and node 2 (far).
+        let dsts = vec![(id, 1), (id, 2)];
+        let mut results = vec![(f32::NAN, f32::NAN); dsts.len()];
+        let settled = dijkstra_multi_tile_one_to_many(&tiles, id, 0, &dsts, 1000, &mut results);
+        // 0 -> 1: 100m / 10s. 0 -> 2: 300m / 30s.
+        assert!((results[0].0 - 10.0).abs() < 1e-3, "results[0]={:?}", results[0]);
+        assert!((results[0].1 - 100.0).abs() < 1e-3);
+        assert!((results[1].0 - 30.0).abs() < 1e-3);
+        assert!((results[1].1 - 300.0).abs() < 1e-3);
+        assert!(settled >= 3);
+    }
+
+    #[test]
+    fn l1_decode_and_route() {
+        let buf = synthetic_l1();
+        let l1 = L1View::decode(&buf).expect("decode L1");
+        assert_eq!(l1.n_nodes, 3);
+        assert_eq!(l1.m_edges, 2);
+        // Snap should land on node 0 for coords at the start of the line.
+        let (snap_node, snap_d) = l1.snap(37.0, -122.0, 5).expect("snap src");
+        assert_eq!(snap_node, 0);
+        assert!(snap_d < 1.0);
+        // Forward A* 0 -> 2 = 30 s, 300 m, settled >= 2.
+        let (time_s, len_m, settled) = forward_astar_l1(&l1, 0, 2, 1000);
+        assert!((time_s - 30.0).abs() < 1e-3, "time_s={}", time_s);
+        assert!((len_m - 300.0).abs() < 1e-3, "len_m={}", len_m);
+        assert!(settled >= 2);
     }
 
     #[test]
