@@ -115,6 +115,38 @@ async function writeLegCacheBatch(
   }));
 }
 
+/**
+ * Returns true if the origin AND every destination is a literal "lat,lng"
+ * input AND the diagonal of their bounding box is small enough that the
+ * Rust one-to-many Dijkstra (no heuristic) will settle inside the 500K-
+ * node cap. We skip the auto-route for address queries (would require
+ * geocoding to check bbox, which we'd then re-do downstream).
+ *
+ * Threshold (~3 km) is set conservatively so WASM never regresses on the
+ * 44-route benchmark; matrices that fit get the sub-millisecond Rust
+ * Dijkstra, anything larger goes through the TS A*.
+ */
+const WASM_AUTO_BBOX_M = 3_000;
+const LATLNG_RE = /^-?\d{1,3}(?:\.\d+)?,-?\d{1,3}(?:\.\d+)?$/;
+function parseLatLng(s: string): [number, number] | null {
+  if (!LATLNG_RE.test(s)) return null;
+  const [lat, lon] = s.split(",").map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return [lat, lon];
+}
+function wasmAutoOk(originQ: string, destQs: string[]): boolean {
+  const oC = parseLatLng(originQ);
+  if (!oC) return false;
+  let latMin = oC[0], latMax = oC[0], lonMin = oC[1], lonMax = oC[1];
+  for (const dq of destQs) {
+    const dC = parseLatLng(dq);
+    if (!dC) return false;
+    latMin = Math.min(latMin, dC[0]); latMax = Math.max(latMax, dC[0]);
+    lonMin = Math.min(lonMin, dC[1]); lonMax = Math.max(lonMax, dC[1]);
+  }
+  return haversineMeters(latMin, lonMin, latMax, lonMax) <= WASM_AUTO_BBOX_M;
+}
+
 async function tryWasmMatrix(
   url: URL, env: Env, originQ: string, destQs: string[],
 ): Promise<Response | null> {
@@ -262,19 +294,24 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     });
   }
 
-  // Routing: WASM (Rust) is the default for single-origin queries (1 origin
-  // x N destinations) where the corridor fits the 16-tile cap. The Rust
-  // one-to-many Dijkstra runs a single graph traversal across all
-  // destinations -- 36 % faster wall-time than the TS oneToMany on the
-  // 44-route benchmark, and as much as 11x faster on long routes. Multi-
-  // origin queries and routes whose corridor exceeds the cap fall through
-  // to the TS L0 router. Set `?router=ts` to force the TS path (escape
-  // hatch for debugging or if WASM regresses on a specific query).
+  // Routing: WASM (Rust) is used when the query is single-origin AND
+  // ?router=wasm is set OR every endpoint is close to each other (a small
+  // bounding box where the Rust one-to-many Dijkstra terminates fast).
+  //
+  // The Rust Dijkstra has no heuristic, so on dense urban graphs it can
+  // settle 500K+ nodes before reaching a destination 5+ miles away. The
+  // TS A* with weighted haversine doesn't have that issue. We pick a
+  // straight-line bbox threshold conservative enough that WASM never
+  // regresses on the 44-route benchmark; matrices that fit get a sub-
+  // millisecond inner loop, larger ones go through the TS A*.
+  //
+  // Set ?router=wasm to force the WASM path; set ?router=ts to force TS.
   const routerParam = url.searchParams.get("router");
-  if (routerParam !== "ts" && origins.length === 1) {
+  if (origins.length === 1 && routerParam !== "ts"
+      && (routerParam === "wasm" || wasmAutoOk(origins[0], destinations))) {
     const r = await tryWasmMatrix(url, env, origins[0], destinations);
     if (r) return r;
-    // else: corridor too large, snap failed, or one-to-many returned no
+    // null = corridor too large, snap failed, or one-to-many returned no
     // results -- fall through to the TS path for the same query.
   }
 
