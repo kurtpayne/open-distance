@@ -1,4 +1,4 @@
-// v2 sharded geocoder. One D1 database per state; dispatch by parsed state.
+// Sharded geocoder. One D1 database per state; dispatch by parsed state.
 // Falls back to a parallel fan-out across all shards when the state can't be
 // parsed -- rare in real US queries but kept for robustness.
 

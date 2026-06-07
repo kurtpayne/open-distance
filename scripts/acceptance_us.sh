@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Cross-region acceptance test for v2 US-wide deployment.
-# Avoids associative arrays so it runs on macOS's stock bash 3.2.
+# Continental-US acceptance probe set. Avoids associative arrays so it runs
+# on macOS's stock bash 3.2. Hits the public unauthenticated endpoint.
 set -uo pipefail
-: "${OD_API_KEY:?Need OD_API_KEY}"
 BASE="${OD_API_BASE:-https://open-distance.com}"
 
 pass=0; fail=0
@@ -25,14 +24,12 @@ probe() {
 
 dm() {
   local orig="$1"; local dest="$2"
-  echo "$BASE/maps/api/distancematrix/json?origins=$orig&destinations=$dest&units=imperial&key=$OD_API_KEY"
+  echo "$BASE/maps/api/distancematrix/json?origins=$orig&destinations=$dest&units=imperial"
 }
 
 echo "=== health ==="
 probe "healthz" "$BASE/healthz" '"status":"ok"'
-
-echo "=== auth ==="
-probe "bad key -> REQUEST_DENIED" "$BASE/maps/api/distancematrix/json?origins=37.77,-122.42&destinations=37.44,-122.14&key=wrong" '"status":"REQUEST_DENIED"'
+probe "healthz/api (E2E)" "$BASE/healthz/api" '"status":"ok"'
 
 echo "=== within-metro coord routes ==="
 probe "SF within"         "$(dm 37.7749,-122.4194 37.7849,-122.4094)" '"status":"OK".*"distance"'

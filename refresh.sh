@@ -7,7 +7,7 @@
 #
 #   refresh.sh setup                 ensure venv + deps + dirs
 #   refresh.sh bootstrap             one-time CF resource provisioning
-#                                    (R2 bucket, KV ns, 49 D1 shards, API_KEY secret)
+#                                    (R2 bucket, KV ns, 49 D1 shards)
 #   refresh.sh fetch [STATES...]     download OSM PBFs + NAD + OA + TIGER
 #   refresh.sh tiles [STATES...]     per-state L0 tile build (CSR binaries)
 #   refresh.sh addresses [STATES...] NAD+OA+OSM merged CSV + TIGER segments CSV
@@ -54,9 +54,6 @@ load_env() {
     fi
     if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
       export CLOUDFLARE_ACCOUNT_ID="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-    fi
-    if [[ -z "${OD_API_KEY:-}" ]]; then
-      export OD_API_KEY="$(grep '^OD_API_KEY=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
     if [[ -z "${OD_API_HOSTNAME:-}" ]]; then
       export OD_API_HOSTNAME="$(grep '^OD_API_HOSTNAME=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
@@ -120,12 +117,6 @@ stage_bootstrap() {
   if ! grep -q "GEOCODE_CA" "$ROOT/wrangler.toml"; then
     log "bootstrap: appending shard bindings to wrangler.toml"
     cat "$ROOT/data/v2/d1_bindings.toml" >> "$ROOT/wrangler.toml"
-  fi
-  if [[ -n "${OD_API_KEY:-}" ]]; then
-    log "bootstrap: setting API_KEY worker secret"
-    printf '%s' "$OD_API_KEY" | wrangler secret put API_KEY >/dev/null 2>&1 || true
-  else
-    log "bootstrap: OD_API_KEY not in env; skip secret. Set with: wrangler secret put API_KEY"
   fi
   log "bootstrap: done"
 }

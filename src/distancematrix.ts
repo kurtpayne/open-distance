@@ -1,4 +1,4 @@
-// Tiled Distance Matrix handler. Same wire format as v1; routing internals are tiled.
+// Tiled Distance Matrix handler. Wire format is Google-shape (Distance Matrix v1).
 
 import { geocode, GeocodeResult } from "./geocode";
 import { snapK, getTile, SnapResult } from "./tiles";
@@ -11,19 +11,16 @@ import { formatDistance, formatDuration, Units } from "./format";
 // (e.g. a private campus road).
 const SNAP_K = 5;
 
-// Above this straight-line distance, use the L1 highway overlay instead of
-// the tiled L0 graph. Tuned to: long enough that L0 weighted-A* still works
-// reliably under it, short enough that we don't miss anything truly local.
-// Straight-line distance above which we try the L1 overlay instead of L0.
-// Set high (~1500 mi) because the L1 overlay's forward A* sometimes returns
-// ZERO_RESULTS on mid-range corridors where L0 reliably finds a path. Only
-// true cross-country (~NYC<->LA scale) actually needs L1. The earlier 200 mi
-// threshold caused mid-range regressions after we dropped the reverse CSR.
+// Straight-line distance above which we try the L1 highway overlay instead
+// of the tiled L0 graph. Set high (~1500 mi) so L1 only kicks in for true
+// cross-country routes; the tiled L0 weighted A* serves everything shorter
+// reliably. L1 is currently disabled in production (see L1_ENABLED) because
+// the binary doesn't fit the 128 MB Worker isolate budget alongside the
+// per-request scratch.
 const L1_DISPATCH_M = 2_400_000;  // ~1500 mi
 
-// L1 dispatch is gated by an env-var feature flag so a half-built / oversized
-// L1 binary in R2 can't OOM the isolate. Set L1_ENABLED=1 once the overlay
-// binary is known to fit under the 128 MB Worker memory limit.
+// L1 dispatch is gated on `L1_ENABLED=1` in env vars so a future build that
+// fits the memory budget can flip it on without code changes.
 function l1Enabled(env: Env): boolean {
   return String((env as Record<string, unknown>).L1_ENABLED ?? "") === "1";
 }
@@ -42,13 +39,8 @@ export interface Env {
   GRAPH: R2Bucket;
   CACHE: KVNamespace;
   DATA_VERSION: string;
-  API_KEY: string;
-  // Rust-compiled WASM router. Bound via wrangler.toml [wasm_modules].
-  // Optional: present when the Worker is built with the WASM module
-  // packaged, absent on older deploys -- gate usage with `if (env.ROUTER_WASM)`.
-  ROUTER_WASM?: WebAssembly.Module;
   // Per-state D1 shards: GEOCODE_CA, GEOCODE_NY, ...
-  // Accessed dynamically by src/v2/geocode.ts via env[`GEOCODE_${state}`].
+  // Accessed dynamically by src/geocode.ts via env[`GEOCODE_${state}`].
   [k: string]: unknown;
 }
 
@@ -87,7 +79,7 @@ async function resolveAll(
 }
 
 function legCacheKey(version: string, src: NodeRef, dst: NodeRef): string {
-  // v2 prefix: invalidates legs from the pre-length-fix router.
+  // Versioned prefix lets us invalidate cached legs on router changes.
   return `leg2:${version}:${src.tx},${src.ty},${src.dense}:${dst.tx},${dst.ty},${dst.dense}:driving`;
 }
 
@@ -538,7 +530,7 @@ export async function handleCoverage(env: Env): Promise<Response> {
 
 // /healthz helper: confirm a sentinel tile is fetchable.
 export async function healthCheck(env: Env): Promise<Response> {
-  // For v2, healthz checks that the manifest object is reachable and at least one tile exists.
+  // /healthz probes the manifest object is reachable and at least one tile exists.
   try {
     // Probe tile 230_510 (SF area). For US-wide, this should be a known-good tile or the manifest.
     const tile = await getTile(env.GRAPH, env.DATA_VERSION, 230, 510);

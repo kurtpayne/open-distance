@@ -58,7 +58,7 @@ matrices) and operations (Worker isolates instead of dedicated servers). The
 hit `open-distance` first, cache the answer, escalate to a premium engine
 only for queries that actually need its premium features.
 
-## Architecture (v2, tiled)
+## Architecture
 
 ```
    Cloudflare R2  ─ tiles/<version>/<tx>_<ty>.bin    (0.25° L0 graph tiles)
@@ -70,7 +70,11 @@ only for queries that actually need its premium features.
 
    Cloudflare KV  ─ manifest, leg cache, geocode cache
 
-   Worker (TS)    ─ geocode → multi-candidate snap → tiled Dijkstra → JSON
+   Worker         ─ geocode → multi-candidate snap → tiled Dijkstra → JSON.
+                    Single-origin queries run via a Rust → WASM router
+                    (rust-router/, ~56 KB); multi-origin matrix queries and
+                    routes whose corridor exceeds the 16-tile cap fall back
+                    to the TypeScript router.
 ```
 
 ## Endpoint contract
@@ -81,7 +85,8 @@ GET /maps/api/distancematrix/json
     &destinations=<C>|<D>|...
     &units=imperial|metric          # default imperial
     &mode=driving                   # only driving supported
-    &key=<API_KEY>                  # required; Google-style auth
+    &router=ts                      # optional; force the TypeScript router
+                                    # (default: Rust/WASM where applicable)
 ```
 
 Response is byte-compatible with Google's Distance Matrix JSON, plus two
@@ -194,7 +199,7 @@ brew install osmium-tool
 npm install
 # Cloudflare auth: copy .env.example to .env and fill in the values,
 #                  or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID directly
-# Worker API key:  export OD_API_KEY=od_…
+# No API key required -- the public endpoint is rate-limited per IP.
 ```
 
 Then:
@@ -275,44 +280,50 @@ along the matching segment by house-number range. Returned as `interpolated`.
 
 ```
 src/
-  index.ts            top-level routing
-  auth.ts             key= validation
-  format.ts           "5.4 mi" / "11 mins" helpers
-  geocode.ts (v1)     legacy single-DB FTS5 lookup (kept for reference)
-  graph.ts   (v1)     legacy monolithic CSR graph
-  v2/
-    state_parser.ts   parse state code from query
-    geocode.ts        sharded geocoder (per-state D1) + TIGER fallback
-    interpolate.ts    TIGER segment lookup + linear interpolation
-    tiles.ts          tile binary loader + LRU + R2 fetch + multi-candidate snap
-    router.ts         tiled lazy-fetch one-to-many Dijkstra (destination groups)
-    distancematrix.ts Google-shaped handler
-etl/v2/
+  index.ts               top-level Worker dispatch
+  distancematrix.ts      Google-shape handler + tryWasmMatrix (Rust path)
+  geocode.ts             per-state D1 sharded geocoder + TIGER fallback
+  interpolate.ts         TIGER segment lookup + linear interpolation
+  normalize.ts           address normalizer
+  overlay.ts             L1 highway overlay (currently disabled in production)
+  ratelimit.ts           KV-backed per-IP rate limiter (GDPR-clean: hashed IP)
+  router.ts              tiled lazy-fetch one-to-many Dijkstra (TS fallback)
+  site.ts                landing / docs / privacy / attribution HTML
+  state_parser.ts        parse state code from query
+  tiles.ts               tile binary loader + decoded LRU + bytes LRU + R2 fetch
+  format.ts              "5.4 mi" / "11 mins" helpers
+  wasm_router.ts         TS adapter for the Rust router
+
+rust-router/             Rust crate compiled to WASM
+  src/lib.rs             TileView decode, multi-tile A*, one-to-many Dijkstra
+  target/.../*.wasm      compiled artifact, committed (CI has no Rust toolchain)
+  Cargo.toml
+
+etl/
   states.py                 US-48 + DC catalog
   config.py                 tile grid + paths + sources
-  fetch_sources.py          OSM PBF downloads (Geofabrik per-state)
-  fetch_nad.py              NAD national ZIP download (US DOT)
-  fetch_oa.py               OpenAddresses per-source downloads
-  fetch_tiger.py            TIGER per-state edges-geodatabase downloads
+  fetch_*.py                source downloads (OSM PBF / NAD / OA / TIGER)
   build_tiles.py            OSM → per-tile CSR binaries
-  build_nad_addresses.py    NAD CSV → per-state .nad.csv
-  build_oa_addresses.py     OA GeoJSON.gz → per-state .oa.csv
-  build_addresses.py        OSM addr-tagged nodes → per-state .osm.csv
+  build_*_addresses.py      NAD / OA / OSM → per-state .csv
   merge_addresses.py        NAD + OA + OSM → per-state .csv
-  build_tiger_segments.py   TIGER GDB → per-state segments.csv (via fiona)
-  upload_tiles_parallel.sh  parallel R2 upload (xargs -P, fail-log + retry)
-  load_d1_parallel.py       parallel D1 HTTP API loader (addresses) with backoff
+  build_tiger_segments.py   TIGER GDB → per-state segments.csv
+  build_overlay.py          OSM → L1 highway overlay binary
+  upload_tiles_parallel.sh  parallel R2 upload with fail-log + retry
+  load_d1_parallel.py       parallel D1 HTTP API loader (addresses)
   load_d1_segments.py       parallel D1 loader (segments)
-  publish_manifest.sh       write manifest to KV
+  publish_manifest.sh       write manifest + OA attribution to KV
+
 scripts/
-  provision.sh              R2 + legacy D1 + KV (one-time)
-  provision_d1_shards.sh    49 per-state D1 shards (one-time)
-  acceptance.sh             v1 acceptance (Bay Area)
-  acceptance_us.sh          US-wide acceptance (cross-region + addresses)
-refresh.sh                  master pipeline
-wrangler.toml               Worker config + 50 D1 bindings + custom domain
+  provision.sh              R2 + legacy D1 + KV (one-time bootstrap)
+  provision_d1_shards.sh    49 per-state D1 shards (one-time bootstrap)
+  materialize_wrangler.sh   substitute account/resource IDs into wrangler.toml
+  acceptance_us.sh          continental-US acceptance probe set
+  build_wasm_router.sh      cargo build for the Rust crate
+  benchmark_vs_google.py    44-route accuracy + latency benchmark
+
+refresh.sh                  master ETL pipeline (setup → fetch → build → upload → load → publish)
+wrangler.toml               Worker config + 49 per-state D1 bindings
+wrangler.toml.template      fork-friendly template (substitute via materialize_wrangler.sh)
 ```
 
-This repo is private. Secrets live in Worker secrets (`API_KEY`), never in
-the repo. The `data/` directory is gitignored and populated on demand by
-`refresh.sh`.
+The `data/` directory is gitignored and populated on demand by `refresh.sh`.
