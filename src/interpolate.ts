@@ -5,7 +5,7 @@
 // and interpolates lat/lon along the segment.
 
 import type { GeocodeHit } from "./geocode";
-import { SUFFIX_ABBR, DIR_ABBR } from "./normalize";
+import { SUFFIX_ABBR, DIR_ABBR } from "./normalize.ts";
 
 
 function abbrToken(t: string): string {
