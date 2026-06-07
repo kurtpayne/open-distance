@@ -234,21 +234,24 @@ async function tryWasmMatrix(
   const destination_addresses = destResolved.map(d => d.normalized);
   const destination_matches = destResolved.map(d => d.match);
 
+  // If the Rust Dijkstra didn't reach any routable destination, fall back
+  // to the TS path instead of returning ZERO_RESULTS. (No heuristic means
+  // it can hit the settled cap on dense urban graphs before reaching a
+  // destination the TS A* would have found.)
+  const wasmFailed = routableIdx.some((_, k) => !out.results[k].ok);
+  if (wasmFailed) return null;
+
   const elements: Element[] = destResolved.map(() => ({ status: "NOT_FOUND" }));
   for (let k = 0; k < routableIdx.length; k++) {
     const j = routableIdx[k];
     const r = out.results[k];
-    if (r.ok) {
-      const meters = Math.round(r.lenM);
-      const seconds = Math.round(r.timeS);
-      elements[j] = {
-        status: "OK",
-        distance: { text: formatDistance(meters, units), value: meters },
-        duration: { text: formatDuration(seconds), value: seconds },
-      };
-    } else {
-      elements[j] = { status: "ZERO_RESULTS" };
-    }
+    const meters = Math.round(r.lenM);
+    const seconds = Math.round(r.timeS);
+    elements[j] = {
+      status: "OK",
+      distance: { text: formatDistance(meters, units), value: meters },
+      duration: { text: formatDuration(seconds), value: seconds },
+    };
   }
 
   const body = {
