@@ -14,6 +14,11 @@ export default {
     const url = new URL(req.url);
 
     // -- API endpoints --------------------------------------------------------
+    // /healthz* and /coverage answer to GET + HEAD. Uptime probes commonly
+    // use HEAD; Workers strips the body for us.
+    if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405, headers: { "allow": "GET, HEAD, POST" } });
+    }
     if (url.pathname === "/healthz") return v2Health(env);
     if (url.pathname === "/healthz/api") {
       // End-to-end probe: runs a real Distance Matrix query (SF intra-metro,
