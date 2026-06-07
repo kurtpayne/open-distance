@@ -105,6 +105,22 @@ function tileKey(version: string, tx: number, ty: number): string {
   return `tiles/${version}/${tx}_${ty}.bin`;
 }
 
+/**
+ * Fetch a tile's raw bytes directly from R2, bypassing the decode + LRU
+ * cache. Used by the WASM router which wants to copy the bytes into its
+ * own linear memory and decode there.
+ */
+export async function getTileBytes(
+  bucket: R2Bucket,
+  version: string,
+  tx: number,
+  ty: number,
+): Promise<Uint8Array | null> {
+  const obj = await bucket.get(tileKey(version, tx, ty));
+  if (!obj) return null;
+  return new Uint8Array(await obj.arrayBuffer());
+}
+
 export async function getTile(
   bucket: R2Bucket,
   version: string,

@@ -40,6 +40,81 @@ export default {
         impl: "wasm",
       }), { headers: { "content-type": "application/json" } });
     }
+    if (url.pathname === "/healthz/wasm/route") {
+      // Real end-to-end probe for the Rust multi-tile A*. Pass two lat,lon
+      // pairs as ?o=... &d=... ; we snap each to a tile node, fetch a
+      // bbox of tiles around both endpoints (capped to keep memory sane),
+      // and run the WASM multi-tile A*.
+      const o = (url.searchParams.get("o") || "").split(",").map(Number);
+      const d = (url.searchParams.get("d") || "").split(",").map(Number);
+      if (o.length !== 2 || d.length !== 2 || o.some(Number.isNaN) || d.some(Number.isNaN)) {
+        return new Response(JSON.stringify({ ok: false, reason: "usage: /healthz/wasm/route?o=lat,lon&d=lat,lon" }),
+          { status: 400, headers: { "content-type": "application/json" } });
+      }
+      const { snapK, packTileId, getTileBytes } = await import("./v2/tiles");
+      const { loadWasmRouter, astarMultiTile, isLoaded } = await import("./v2/wasm_router");
+      const wasmMod = (await import("../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
+
+      const tLoad0 = Date.now();
+      if (!isLoaded()) await loadWasmRouter(wasmMod);
+      const tLoadMs = Date.now() - tLoad0;
+
+      // Snap each endpoint to its best tile node.
+      const tSnap0 = Date.now();
+      const oSnaps = await snapK(env.GRAPH, env.DATA_VERSION, o[0], o[1], 1);
+      const dSnaps = await snapK(env.GRAPH, env.DATA_VERSION, d[0], d[1], 1);
+      const tSnapMs = Date.now() - tSnap0;
+      if (oSnaps.length === 0 || dSnaps.length === 0) {
+        return new Response(JSON.stringify({ ok: false, reason: "snap failed", o_snaps: oSnaps.length, d_snaps: dSnaps.length, load_ms: tLoadMs, snap_ms: tSnapMs }),
+          { headers: { "content-type": "application/json" } });
+      }
+      const src = oSnaps[0]; const dst = dSnaps[0];
+
+      // Tile corridor: bbox over the two snap tiles + a 1-tile buffer in
+      // each direction. Capped at 16 tiles to keep WASM memory bounded.
+      const txMin = Math.min(src.tx, dst.tx) - 1;
+      const txMax = Math.max(src.tx, dst.tx) + 1;
+      const tyMin = Math.min(src.ty, dst.ty) - 1;
+      const tyMax = Math.max(src.ty, dst.ty) + 1;
+      const tileCount = (txMax - txMin + 1) * (tyMax - tyMin + 1);
+      if (tileCount > 16) {
+        return new Response(JSON.stringify({ ok: false, reason: "route too long for wasm mvp (corridor > 16 tiles)", tile_count: tileCount }),
+          { headers: { "content-type": "application/json" } });
+      }
+
+      // Fetch tile bytes in parallel.
+      const tFetch0 = Date.now();
+      const tiles: { tileId: number; bytes: Uint8Array }[] = [];
+      await Promise.all(
+        Array.from({ length: tileCount }, (_, i) => {
+          const tx = txMin + (i % (txMax - txMin + 1));
+          const ty = tyMin + Math.floor(i / (txMax - txMin + 1));
+          return getTileBytes(env.GRAPH, env.DATA_VERSION, tx, ty).then(bytes => {
+            if (bytes) tiles.push({ tileId: packTileId(tx, ty), bytes });
+          });
+        }),
+      );
+      const tFetchMs = Date.now() - tFetch0;
+
+      const srcId = packTileId(src.tx, src.ty);
+      const dstId = packTileId(dst.tx, dst.ty);
+      const tRun0 = Date.now();
+      const r = astarMultiTile(tiles, srcId, src.dense, dstId, dst.dense, 200_000);
+      const tRunMs = Date.now() - tRun0;
+
+      return new Response(JSON.stringify({
+        ok: r.ok,
+        time_s: r.timeS,
+        len_m: r.lenM,
+        settled: r.settledCount,
+        tile_count: tiles.length,
+        load_ms: tLoadMs,
+        snap_ms: tSnapMs,
+        fetch_ms: tFetchMs,
+        run_ms: tRunMs,
+        impl: "wasm-multi-tile",
+      }), { headers: { "content-type": "application/json" } });
+    }
     if (url.pathname === "/coverage") return v2Coverage(env);
     if (url.pathname === "/maps/api/distancematrix/json") {
       // KV-backed per-IP rate limiter. Default 25/sec, 500/hour, 10k/day per

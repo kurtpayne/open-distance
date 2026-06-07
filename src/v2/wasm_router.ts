@@ -18,6 +18,7 @@ interface WasmExports {
   od_alloc: (size: number) => number;
   od_free: (ptr: number, size: number) => void;
   od_astar_intra_tile: (argsPtr: number, argsLen: number, resultPtr: number) => number;
+  od_astar_multi_tile: (argsPtr: number, argsLen: number, resultPtr: number) => number;
 }
 
 let instance: WasmExports | null = null;
@@ -35,6 +36,67 @@ export interface IntraTileResult {
   lenM: number;
   settledCount: number;
   ok: boolean;
+}
+
+export interface MultiTileInput {
+  tileId: number;        // packed u32: (tx << 16) | ty
+  bytes: Uint8Array;
+}
+
+/**
+ * Run weighted A* across a set of loaded tiles. The caller hands us a
+ * packaged list of (tile_id, bytes); we lay them out for the WASM ABI as a
+ * single arg buffer and invoke the cross-tile router. Returns NaN if the
+ * destination tile isn't included, the src/dst dense ids are out of range,
+ * or A* hits its settled cap before reaching the destination.
+ */
+export function astarMultiTile(
+  tiles: MultiTileInput[],
+  srcTileId: number,
+  srcDense: number,
+  dstTileId: number,
+  dstDense: number,
+  settledCap = 500_000,
+): IntraTileResult {
+  if (!instance) throw new Error("WASM router not loaded");
+
+  // Layout: 24-byte header + manifest (n_tiles * 12 bytes) + concatenated tile bytes.
+  const headerLen = 24;
+  const manifestLen = tiles.length * 12;
+  let bytesLen = 0;
+  for (const t of tiles) bytesLen += t.bytes.byteLength;
+  const argsLen = headerLen + manifestLen + bytesLen;
+
+  const argsPtr = instance.od_alloc(argsLen);
+  const resultPtr = instance.od_alloc(12);
+  try {
+    const dv = new DataView(instance.memory.buffer, argsPtr, headerLen + manifestLen);
+    dv.setUint32(0, srcTileId, true);
+    dv.setUint32(4, srcDense, true);
+    dv.setUint32(8, dstTileId, true);
+    dv.setUint32(12, dstDense, true);
+    dv.setUint32(16, settledCap, true);
+    dv.setUint32(20, tiles.length, true);
+    const mem = new Uint8Array(instance.memory.buffer);
+    let bytesCursor = headerLen + manifestLen;  // offset within args buffer
+    for (let i = 0; i < tiles.length; i++) {
+      const off = headerLen + i * 12;
+      dv.setUint32(off, tiles[i].tileId, true);
+      dv.setUint32(off + 4, bytesCursor, true);
+      dv.setUint32(off + 8, tiles[i].bytes.byteLength, true);
+      mem.set(tiles[i].bytes, argsPtr + bytesCursor);
+      bytesCursor += tiles[i].bytes.byteLength;
+    }
+    const rc = instance.od_astar_multi_tile(argsPtr, argsLen, resultPtr);
+    const out = new DataView(instance.memory.buffer, resultPtr, 12);
+    const timeS = out.getFloat32(0, true);
+    const lenM = out.getFloat32(4, true);
+    const settledCount = out.getUint32(8, true);
+    return { timeS, lenM, settledCount, ok: rc === 1 && Number.isFinite(timeS) };
+  } finally {
+    instance.od_free(argsPtr, argsLen);
+    instance.od_free(resultPtr, 12);
+  }
 }
 
 /**

@@ -15,7 +15,7 @@
 //! stay in lockstep; the binaries on R2 are the contract.
 
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 
 // ---------------------------------------------------------------------------
 // Linear-memory allocator surface for WASM callers.
@@ -63,8 +63,12 @@ pub struct TileView<'a> {
     off_edge_targets: usize, // u32 * m_edges
     off_edge_time_s: usize,  // f32 * m_edges
     off_edge_len_m: usize,   // f32 * m_edges
-    // grid + extern offsets exist in the format but aren't needed for the
-    // intra-tile router; we skip computing them.
+    // For multi-tile routing: when an edge target >= n_local, it indexes into
+    // the extern arrays (extern_idx = target - n_local). extern_packed[i] is a
+    // u32 packed tile id (tx in high 16 bits, ty in low 16 bits, both i16);
+    // extern_dense[i] is the target's dense id within that remote tile.
+    off_extern_packed: usize, // u32 * n_extern
+    off_extern_dense: usize,  // u32 * n_extern
 }
 
 impl<'a> TileView<'a> {
@@ -90,14 +94,14 @@ impl<'a> TileView<'a> {
         let me = m_edges as usize;
 
         let mut p = 32;
-        let off_local_lat = p;       p += nl * 4;
-        let off_local_lon = p;       p += nl * 4;
-        let _off_extern_packed = p;  p += ne * 4;
-        let _off_extern_dense = p;   p += ne * 4;
-        let off_edge_offsets = p;    p += (nl + 1) * 4;
-        let off_edge_targets = p;    p += me * 4;
-        let off_edge_time_s = p;     p += me * 4;
-        let off_edge_len_m = p;      p += me * 4;
+        let off_local_lat = p;      p += nl * 4;
+        let off_local_lon = p;      p += nl * 4;
+        let off_extern_packed = p;  p += ne * 4;
+        let off_extern_dense = p;   p += ne * 4;
+        let off_edge_offsets = p;   p += (nl + 1) * 4;
+        let off_edge_targets = p;   p += me * 4;
+        let off_edge_time_s = p;    p += me * 4;
+        let off_edge_len_m = p;     p += me * 4;
         // grid arrays follow but we don't need them for the routing core.
 
         if p > bytes.len() {
@@ -108,6 +112,7 @@ impl<'a> TileView<'a> {
             tx, ty, n_local, n_extern, m_edges, grid_n_lon, grid_n_lat,
             bytes,
             off_local_lat, off_local_lon,
+            off_extern_packed, off_extern_dense,
             off_edge_offsets, off_edge_targets, off_edge_time_s, off_edge_len_m,
         })
     }
@@ -143,6 +148,18 @@ impl<'a> TileView<'a> {
     #[inline]
     fn edge_len_m(&self, edge: u32) -> f32 {
         self.read_f32(self.off_edge_len_m + (edge as usize) * 4)
+    }
+    /// Returns (remote_tile_id, remote_dense) for an extern-indexed target.
+    /// Caller must have already verified target >= n_local.
+    #[inline]
+    fn resolve_extern(&self, target: u32) -> (u32, u32) {
+        let extern_idx = (target - self.n_local) as usize;
+        let remote_tile = self.read_u32(self.off_extern_packed + extern_idx * 4);
+        let remote_dense = self.read_u32(self.off_extern_dense + extern_idx * 4);
+        (remote_tile, remote_dense)
+    }
+    pub fn packed_id(&self) -> u32 {
+        (((self.tx as u32) & 0xffff) << 16) | ((self.ty as u32) & 0xffff)
     }
 }
 
@@ -247,6 +264,134 @@ pub fn astar_intra_tile(tile: &TileView, src: u32, dst: u32, settled_cap: u32)
 }
 
 // ---------------------------------------------------------------------------
+// Multi-tile A*. Routes across cross-tile edges using the extern arrays.
+//
+// State key: packed (tile_id, dense) into a u64. Distances tracked in a
+// HashMap keyed by that state. Heap entries store the f-score + g-time +
+// g-len + state.
+// ---------------------------------------------------------------------------
+
+#[inline]
+fn pack_state(tile_id: u32, dense: u32) -> u64 {
+    ((tile_id as u64) << 32) | (dense as u64)
+}
+
+#[derive(PartialEq)]
+struct MultiHeapNode { f: f32, g_time: f32, g_len: f32, state: u64 }
+
+impl Eq for MultiHeapNode {}
+impl Ord for MultiHeapNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.f.partial_cmp(&self.f).unwrap_or(Ordering::Equal)
+    }
+}
+impl PartialOrd for MultiHeapNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+/// Multi-tile weighted A*. Given a map of tile_id -> TileView and a
+/// (src_tile, src_dense) + (dst_tile, dst_dense), expand across cross-tile
+/// edges until reaching the destination or hitting `settled_cap`.
+///
+/// If the search visits a node whose remote tile is not in `tiles`, that edge
+/// is skipped. Caller is responsible for loading enough tiles to span the
+/// route (typically a corridor between src and dst with some buffer width).
+pub fn astar_multi_tile(
+    tiles: &HashMap<u32, TileView<'_>>,
+    src_tile: u32,
+    src_dense: u32,
+    dst_tile: u32,
+    dst_dense: u32,
+    settled_cap: u32,
+) -> (f32, f32, u32) {
+    let src_state = pack_state(src_tile, src_dense);
+    let dst_state = pack_state(dst_tile, dst_dense);
+
+    if src_state == dst_state {
+        return (0.0, 0.0, 0);
+    }
+
+    // Need at least the src tile loaded.
+    let Some(src_t) = tiles.get(&src_tile) else { return (f32::NAN, f32::NAN, 0); };
+    if src_dense >= src_t.n_local {
+        return (f32::NAN, f32::NAN, 0);
+    }
+    // Destination lat/lon for the heuristic. If the dst tile isn't loaded we
+    // still try a search (we just can't terminate on dst meeting), so caller
+    // sees a NaN -- but in practice the caller always supplies the dst tile.
+    let (dst_lat, dst_lon) = if let Some(dt) = tiles.get(&dst_tile) {
+        if dst_dense >= dt.n_local {
+            return (f32::NAN, f32::NAN, 0);
+        }
+        (dt.lat(dst_dense), dt.lon(dst_dense))
+    } else {
+        return (f32::NAN, f32::NAN, 0);
+    };
+
+    let mut g_time: HashMap<u64, f32> = HashMap::new();
+    let mut settled: HashMap<u64, bool> = HashMap::new();
+    g_time.insert(src_state, 0.0);
+
+    let mut heap = BinaryHeap::<MultiHeapNode>::new();
+    let h0 = ASTAR_WEIGHT_K
+        * haversine_m(src_t.lat(src_dense), src_t.lon(src_dense), dst_lat, dst_lon)
+        / MAX_SPEED_M_PER_S;
+    heap.push(MultiHeapNode { f: h0, g_time: 0.0, g_len: 0.0, state: src_state });
+
+    let mut settled_count: u32 = 0;
+    while let Some(cur) = heap.pop() {
+        if settled.get(&cur.state).copied().unwrap_or(false) { continue; }
+        settled.insert(cur.state, true);
+        settled_count += 1;
+        if cur.state == dst_state {
+            return (cur.g_time, cur.g_len, settled_count);
+        }
+        if settled_count >= settled_cap { break; }
+
+        let cur_tile_id = (cur.state >> 32) as u32;
+        let cur_dense = (cur.state & 0xffff_ffff) as u32;
+        let Some(tile) = tiles.get(&cur_tile_id) else { continue; };
+        if cur_dense >= tile.n_local { continue; }
+
+        let (estart, eend) = tile.edge_range(cur_dense);
+        for e in estart..eend {
+            let target = tile.edge_target(e);
+            let (nxt_tile_id, nxt_dense) = if target < tile.n_local {
+                (cur_tile_id, target)
+            } else {
+                tile.resolve_extern(target)
+            };
+            // If the remote tile isn't loaded, we can't follow this edge.
+            if !tiles.contains_key(&nxt_tile_id) { continue; }
+            let nxt_state = pack_state(nxt_tile_id, nxt_dense);
+            if settled.get(&nxt_state).copied().unwrap_or(false) { continue; }
+
+            let dt = tile.edge_time_s(e);
+            let dl = tile.edge_len_m(e);
+            let new_g = cur.g_time + dt;
+            let prev_g = *g_time.get(&nxt_state).unwrap_or(&f32::INFINITY);
+            if new_g < prev_g {
+                g_time.insert(nxt_state, new_g);
+                // Heuristic: need lat/lon of nxt; only available if its tile
+                // is loaded (which we already verified above).
+                let nxt_tile = &tiles[&nxt_tile_id];
+                if nxt_dense >= nxt_tile.n_local { continue; }
+                let h = ASTAR_WEIGHT_K
+                    * haversine_m(nxt_tile.lat(nxt_dense), nxt_tile.lon(nxt_dense), dst_lat, dst_lon)
+                    / MAX_SPEED_M_PER_S;
+                heap.push(MultiHeapNode {
+                    f: new_g + h,
+                    g_time: new_g,
+                    g_len: cur.g_len + dl,
+                    state: nxt_state,
+                });
+            }
+        }
+    }
+    (f32::NAN, f32::NAN, settled_count)
+}
+
+// ---------------------------------------------------------------------------
 // WASM-exposed entry point. ABI:
 //   Input layout in linear memory (caller-supplied buffer at `args_ptr`):
 //     [0..4]    src_dense  (u32 LE)
@@ -259,6 +404,56 @@ pub fn astar_intra_tile(tile: &TileView, src: u32, dst: u32, settled_cap: u32)
 //     [4..8]    len_m   (f32 LE, NaN on failure)
 //     [8..12]   settled_count (u32 LE)
 // ---------------------------------------------------------------------------
+
+/// Multi-tile FFI entry point. Args layout (LE, all u32 unless noted):
+///   [0..4]    src_tile_id
+///   [4..8]    src_dense
+///   [8..12]   dst_tile_id
+///   [12..16]  dst_dense
+///   [16..20]  settled_cap
+///   [20..24]  n_tiles
+///   [24..]    n_tiles * (tile_id: u32, byte_offset: u32, byte_len: u32)
+///   [...]     concatenated tile bytes (offsets are relative to args_ptr).
+/// Result layout (12 bytes): f32 time_s, f32 len_m, u32 settled_count.
+#[no_mangle]
+pub unsafe extern "C" fn od_astar_multi_tile(
+    args_ptr: *const u8,
+    args_len: usize,
+    result_ptr: *mut u8,
+) -> u32 {
+    if args_ptr.is_null() || result_ptr.is_null() || args_len < 24 {
+        return 0;
+    }
+    let args = std::slice::from_raw_parts(args_ptr, args_len);
+    let src_tile = u32::from_le_bytes(args[0..4].try_into().unwrap());
+    let src_dense = u32::from_le_bytes(args[4..8].try_into().unwrap());
+    let dst_tile = u32::from_le_bytes(args[8..12].try_into().unwrap());
+    let dst_dense = u32::from_le_bytes(args[12..16].try_into().unwrap());
+    let cap = u32::from_le_bytes(args[16..20].try_into().unwrap());
+    let n_tiles = u32::from_le_bytes(args[20..24].try_into().unwrap()) as usize;
+
+    let manifest_bytes = 24 + n_tiles * 12;
+    if manifest_bytes > args.len() { return 0; }
+
+    let mut tiles: HashMap<u32, TileView<'_>> = HashMap::with_capacity(n_tiles);
+    for i in 0..n_tiles {
+        let off = 24 + i * 12;
+        let tile_id = u32::from_le_bytes(args[off..off + 4].try_into().unwrap());
+        let byte_off = u32::from_le_bytes(args[off + 4..off + 8].try_into().unwrap()) as usize;
+        let byte_len = u32::from_le_bytes(args[off + 8..off + 12].try_into().unwrap()) as usize;
+        if byte_off + byte_len > args.len() { return 0; }
+        if let Some(tv) = TileView::decode(&args[byte_off..byte_off + byte_len]) {
+            tiles.insert(tile_id, tv);
+        }
+    }
+
+    let (time_s, len_m, settled) = astar_multi_tile(&tiles, src_tile, src_dense, dst_tile, dst_dense, cap);
+    let out = std::slice::from_raw_parts_mut(result_ptr, 12);
+    out[0..4].copy_from_slice(&time_s.to_le_bytes());
+    out[4..8].copy_from_slice(&len_m.to_le_bytes());
+    out[8..12].copy_from_slice(&(settled as u32).to_le_bytes());
+    1
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn od_astar_intra_tile(
@@ -379,5 +574,89 @@ mod tests {
         let mut buf = synthetic_tile();
         buf[0] = 0;
         assert!(TileView::decode(&buf).is_none());
+    }
+
+    /// Two tiles connected via a cross-tile edge:
+    ///   Tile A (tx=0, ty=0): nodes 0 -> 1 (local edge, 100m/10s)
+    ///                       node 1 -> extern_idx 0 (extern edge, 50m/5s)
+    ///   Tile B (tx=1, ty=0): node 0 (the target of the extern edge)
+    /// Expected: A* from A.0 to B.0 finds 150 m / 15 s via 0->1->B.0.
+    fn cross_tile_pair() -> (Vec<u8>, Vec<u8>) {
+        // Tile A: 2 local nodes, 1 extern target, 2 edges.
+        let mut a = Vec::<u8>::new();
+        a.extend_from_slice(&MAGIC.to_le_bytes());
+        a.extend_from_slice(&1u32.to_le_bytes());
+        a.extend_from_slice(&0i32.to_le_bytes());
+        a.extend_from_slice(&0i32.to_le_bytes());
+        a.extend_from_slice(&2u32.to_le_bytes());  // n_local
+        a.extend_from_slice(&1u32.to_le_bytes());  // n_extern
+        a.extend_from_slice(&2u32.to_le_bytes());  // m_edges
+        a.extend_from_slice(&1u16.to_le_bytes());
+        a.extend_from_slice(&1u16.to_le_bytes());
+        for v in [37.0f32, 37.0] { a.extend_from_slice(&v.to_le_bytes()); }
+        for v in [-122.0f32, -121.999] { a.extend_from_slice(&v.to_le_bytes()); }
+        // extern_packed[0] = tile id (tx=1, ty=0) packed = (1 << 16) | 0
+        a.extend_from_slice(&((1u32 << 16) | 0).to_le_bytes());
+        // extern_dense[0] = 0 (node 0 in tile B)
+        a.extend_from_slice(&0u32.to_le_bytes());
+        // edge_offsets: 3 entries (0, 1, 2)
+        for v in [0u32, 1, 2] { a.extend_from_slice(&v.to_le_bytes()); }
+        // edge_targets: edge 0 = node 1 (local), edge 1 = n_local + extern_idx = 2 + 0 = 2
+        for v in [1u32, 2] { a.extend_from_slice(&v.to_le_bytes()); }
+        for v in [10.0f32, 5.0] { a.extend_from_slice(&v.to_le_bytes()); }
+        for v in [100.0f32, 50.0] { a.extend_from_slice(&v.to_le_bytes()); }
+        // grid_offsets + grid_node_ids (trivial)
+        for v in [0u32, 2] { a.extend_from_slice(&v.to_le_bytes()); }
+        for v in [0u32, 1] { a.extend_from_slice(&v.to_le_bytes()); }
+
+        // Tile B: 1 node, 0 extern, 0 edges.
+        let mut b = Vec::<u8>::new();
+        b.extend_from_slice(&MAGIC.to_le_bytes());
+        b.extend_from_slice(&1u32.to_le_bytes());
+        b.extend_from_slice(&1i32.to_le_bytes());  // tx=1
+        b.extend_from_slice(&0i32.to_le_bytes());
+        b.extend_from_slice(&1u32.to_le_bytes());  // n_local
+        b.extend_from_slice(&0u32.to_le_bytes());  // n_extern
+        b.extend_from_slice(&0u32.to_le_bytes());  // m_edges
+        b.extend_from_slice(&1u16.to_le_bytes());
+        b.extend_from_slice(&1u16.to_le_bytes());
+        for v in [37.0f32] { b.extend_from_slice(&v.to_le_bytes()); }
+        for v in [-121.998f32] { b.extend_from_slice(&v.to_le_bytes()); }
+        // edge_offsets: 2 entries (0, 0)
+        for v in [0u32, 0] { b.extend_from_slice(&v.to_le_bytes()); }
+        // no edges
+        // grid_offsets, grid_node_ids
+        for v in [0u32, 1] { b.extend_from_slice(&v.to_le_bytes()); }
+        for v in [0u32] { b.extend_from_slice(&v.to_le_bytes()); }
+        (a, b)
+    }
+
+    #[test]
+    fn multi_tile_astar_crosses_boundary() {
+        let (a, b) = cross_tile_pair();
+        let tv_a = TileView::decode(&a).unwrap();
+        let tv_b = TileView::decode(&b).unwrap();
+        let mut tiles: HashMap<u32, TileView<'_>> = HashMap::new();
+        let id_a = tv_a.packed_id();
+        let id_b = tv_b.packed_id();
+        tiles.insert(id_a, tv_a);
+        tiles.insert(id_b, tv_b);
+        let (time_s, len_m, settled) = astar_multi_tile(&tiles, id_a, 0, id_b, 0, 1000);
+        assert!((time_s - 15.0).abs() < 1e-3, "time_s={}", time_s);
+        assert!((len_m - 150.0).abs() < 1e-3, "len_m={}", len_m);
+        assert!(settled >= 2, "settled={}", settled);
+    }
+
+    #[test]
+    fn multi_tile_missing_remote_returns_nan() {
+        // Only load tile A; cross-edge should be skipped, dst unreachable.
+        let (a, _b) = cross_tile_pair();
+        let tv_a = TileView::decode(&a).unwrap();
+        let mut tiles: HashMap<u32, TileView<'_>> = HashMap::new();
+        let id_a = tv_a.packed_id();
+        tiles.insert(id_a, tv_a);
+        let id_b = ((1u32) << 16) | 0;
+        let (time_s, _, _) = astar_multi_tile(&tiles, id_a, 0, id_b, 0, 1000);
+        assert!(time_s.is_nan());
     }
 }
