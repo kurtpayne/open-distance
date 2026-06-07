@@ -16,9 +16,12 @@ DATA_VERSION = "2026-06"
 
 # Rust-compiled WASM router. Built from rust-router/ via:
 #   cd rust-router && cargo build --release --target wasm32-unknown-unknown
-# Output is ~30 KB; loaded as a WebAssembly.Module at Worker startup.
-[wasm_modules]
-ROUTER_WASM = "rust-router/target/wasm32-unknown-unknown/release/od_router.wasm"
+# Output is ~30 KB; imported directly in src/v2/wasm_router.ts.
+# ES-module workers can't use [wasm_modules]; this rule + the import handles it.
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+fallthrough = true
 
 [[r2_buckets]]
 binding = "GRAPH"

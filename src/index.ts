@@ -18,20 +18,14 @@ export default {
     if (url.pathname === "/healthz/wasm") {
       // Exercises the Rust-compiled WASM router end-to-end on a synthetic
       // 3-node tile (0 -> 1 -> 2, 100 m / 10 s per edge). Returns the timings
-      // and the size of the bound module so a deploy can be verified without
-      // touching the production routing path. See rust-router/src/lib.rs.
+      // and the result so a deploy can be verified without touching the
+      // production routing path. See rust-router/src/lib.rs.
       const { loadWasmRouter, astarIntraTile, isLoaded } =
         await import("./v2/wasm_router");
-      if (!env.ROUTER_WASM) {
-        return new Response(
-          JSON.stringify({ ok: false, reason: "ROUTER_WASM not bound on this env" }),
-          { status: 503, headers: { "content-type": "application/json" } },
-        );
-      }
+      const wasmMod = (await import("../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
       const t0 = Date.now();
-      if (!isLoaded()) await loadWasmRouter(env.ROUTER_WASM);
+      if (!isLoaded()) await loadWasmRouter(wasmMod);
       const tLoad = Date.now() - t0;
-      // Build a tiny synthetic tile in TS (same bytes as the Rust host test).
       const buf = synthSmallTile();
       const t1 = Date.now();
       const r = astarIntraTile(buf, 0, 2, 1000);
