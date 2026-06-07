@@ -18,6 +18,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run acceptance probes
         env:
-          HHAPI_API_KEY: ${{ secrets.HHAPI_API_KEY }}
-          HHAPI_BASE: ${{ github.event.inputs.base_url || secrets.HHAPI_BASE_URL || 'https://open-distance.com' }}
+          # OD_API_KEY is canonical; we keep HHAPI_API_KEY working as a fallback
+          # so existing fork secrets don't break on the rename.
+          OD_API_KEY: ${{ secrets.OD_API_KEY || secrets.HHAPI_API_KEY }}
+          OD_API_BASE: ${{ github.event.inputs.base_url || secrets.OD_API_BASE_URL || secrets.HHAPI_BASE_URL || 'https://open-distance.com' }}
         run: bash scripts/acceptance_us.sh

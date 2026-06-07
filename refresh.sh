@@ -19,7 +19,7 @@
 # STATES are 2-letter USPS codes (CA, TX, NY). Default = all 48 + DC.
 #
 # Auth: looks for CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY in (in order):
-#   $HHAPI_ENV_FILE if set
+#   $OD_API_ENV_FILE if set
 #   ./.env at the repo root
 #   the existing shell environment
 set -euo pipefail
@@ -42,7 +42,8 @@ die()  { log "ERROR: $*"; exit 1; }
 # env
 # ---------------------------------------------------------------------------
 load_env() {
-  local envfile="${HHAPI_ENV_FILE:-$ROOT/.env}"
+  # Back-compat: HHAPI_ENV_FILE still honored if set (pre-OD_API rename).
+  local envfile="${OD_API_ENV_FILE:-${HHAPI_ENV_FILE:-$ROOT/.env}}"
   if [[ -f "$envfile" ]]; then
     # Accept either CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY (alias used by
     # some user shells); use whichever appears first.
@@ -52,11 +53,12 @@ load_env() {
     if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
       export CLOUDFLARE_ACCOUNT_ID="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
-    if [[ -z "${HHAPI_API_KEY:-}" ]]; then
-      export HHAPI_API_KEY="$(grep '^HHAPI_API_KEY=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+    # OD_API_* are canonical; HHAPI_* still honored for back-compat.
+    if [[ -z "${OD_API_KEY:-}" ]]; then
+      export OD_API_KEY="$(grep -E '^(OD_API_KEY|HHAPI_API_KEY)=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
-    if [[ -z "${HHAPI_HOSTNAME:-}" ]]; then
-      export HHAPI_HOSTNAME="$(grep '^HHAPI_HOSTNAME=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+    if [[ -z "${OD_API_HOSTNAME:-}" ]]; then
+      export OD_API_HOSTNAME="$(grep -E '^(OD_API_HOSTNAME|HHAPI_HOSTNAME)=' "$envfile" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
     fi
   fi
   [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN not set (set it directly or put it in $envfile)"
@@ -118,11 +120,11 @@ stage_bootstrap() {
     log "bootstrap: appending shard bindings to wrangler.toml"
     cat "$ROOT/data/v2/d1_bindings.toml" >> "$ROOT/wrangler.toml"
   fi
-  if [[ -n "${HHAPI_API_KEY:-}" ]]; then
+  if [[ -n "${OD_API_KEY:-}" ]]; then
     log "bootstrap: setting API_KEY worker secret"
-    printf '%s' "$HHAPI_API_KEY" | wrangler secret put API_KEY >/dev/null 2>&1 || true
+    printf '%s' "$OD_API_KEY" | wrangler secret put API_KEY >/dev/null 2>&1 || true
   else
-    log "bootstrap: HHAPI_API_KEY not in env; skip secret. Set with: wrangler secret put API_KEY"
+    log "bootstrap: OD_API_KEY not in env; skip secret. Set with: wrangler secret put API_KEY"
   fi
   log "bootstrap: done"
 }

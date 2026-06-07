@@ -118,7 +118,7 @@ brew install osmium-tool
 npm install
 # Cloudflare auth: copy .env.example to .env and fill in the values,
 #                  or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID directly
-# Worker API key:  export HHAPI_API_KEY=hhapi_…
+# Worker API key:  export OD_API_KEY=od_…
 ```
 
 Then:

@@ -2,8 +2,8 @@
 # Cross-region acceptance test for v2 US-wide deployment.
 # Avoids associative arrays so it runs on macOS's stock bash 3.2.
 set -uo pipefail
-: "${HHAPI_API_KEY:?Need HHAPI_API_KEY}"
-BASE="${HHAPI_BASE:-https://hhapi.propspress.com}"
+: "${OD_API_KEY:?Need OD_API_KEY}"
+BASE="${OD_API_BASE:-${HHAPI_BASE:-https://open-distance.com}}"
 
 pass=0; fail=0
 
@@ -25,7 +25,7 @@ probe() {
 
 dm() {
   local orig="$1"; local dest="$2"
-  echo "$BASE/maps/api/distancematrix/json?origins=$orig&destinations=$dest&units=imperial&key=$HHAPI_API_KEY"
+  echo "$BASE/maps/api/distancematrix/json?origins=$orig&destinations=$dest&units=imperial&key=$OD_API_KEY"
 }
 
 echo "=== health ==="

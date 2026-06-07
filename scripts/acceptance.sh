@@ -3,9 +3,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-: "${HHAPI_API_KEY:?Need HHAPI_API_KEY in env}"
+: "${OD_API_KEY:?Need OD_API_KEY in env}"
 
-BASE="${HHAPI_BASE:-https://hhapi.propspress.com}"
+BASE="${OD_API_BASE:-${HHAPI_BASE:-https://open-distance.com}}"
 
 echo "[acceptance] waiting for $BASE/healthz ..."
 for i in $(seq 1 60); do
@@ -29,7 +29,7 @@ if [[ ! -f "$CSV" ]]; then
   exit 1
 fi
 
-python3 - "$CSV" "$BASE" "$HHAPI_API_KEY" <<'PY'
+python3 - "$CSV" "$BASE" "$OD_API_KEY" <<'PY'
 import csv, random, sys, urllib.parse, urllib.request, json
 csv_path, base, key = sys.argv[1], sys.argv[2], sys.argv[3]
 

@@ -2,7 +2,7 @@
 # Materialize wrangler.toml from wrangler.toml.template by substituting:
 #   __CF_ACCOUNT_ID__    = $CLOUDFLARE_ACCOUNT_ID
 #   __KV_CACHE_ID__      = id of the HHAPI_CACHE KV namespace
-#   __CUSTOM_DOMAIN__    = $HHAPI_HOSTNAME (e.g. hhapi.example.com)
+#   __CUSTOM_DOMAIN__    = $OD_API_HOSTNAME (e.g. distance.example.com)
 #   __D1_GEOCODE_<ST>__  = database_id of the hhapi-geo-<st> D1 shard
 #
 # Idempotent: re-running re-derives every placeholder from the live CF state.
@@ -11,7 +11,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 : "${CLOUDFLARE_API_TOKEN:?Need CLOUDFLARE_API_TOKEN}"
 : "${CLOUDFLARE_ACCOUNT_ID:?Need CLOUDFLARE_ACCOUNT_ID}"
-: "${HHAPI_HOSTNAME:?Need HHAPI_HOSTNAME (e.g. hhapi.example.com)}"
+: "${OD_API_HOSTNAME:=${HHAPI_HOSTNAME:-}}"
+[[ -n "$OD_API_HOSTNAME" ]] || { echo "ERROR: OD_API_HOSTNAME not set (e.g. distance.example.com)" >&2; exit 1; }
 
 TEMPLATE="$ROOT/wrangler.toml.template"
 OUT="$ROOT/wrangler.toml"
@@ -39,7 +40,7 @@ done
 
 sed -e "s|__CF_ACCOUNT_ID__|${CLOUDFLARE_ACCOUNT_ID}|g" \
     -e "s|__KV_CACHE_ID__|${KV_ID}|g" \
-    -e "s|__CUSTOM_DOMAIN__|${HHAPI_HOSTNAME}|g" \
+    -e "s|__CUSTOM_DOMAIN__|${OD_API_HOSTNAME}|g" \
     "${SUBS[@]}" \
     "$TEMPLATE" > "$OUT"
 
