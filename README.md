@@ -71,10 +71,10 @@ only for queries that actually need its premium features.
    Cloudflare KV  ─ manifest, leg cache, geocode cache
 
    Worker         ─ geocode → multi-candidate snap → tiled Dijkstra → JSON.
-                    Single-origin queries run via a Rust → WASM router
-                    (rust-router/, ~56 KB); multi-origin matrix queries and
-                    routes whose corridor exceeds the 16-tile cap fall back
-                    to the TypeScript router.
+                    Two routers: Rust → WASM (rust-router/, ~56 KB) for
+                    short-bbox lat/lng queries where its sub-ms inner loop
+                    dominates; TypeScript weighted A* for everything else.
+                    Per-query dispatch; ?router=wasm or ?router=ts overrides.
 ```
 
 ## Endpoint contract
@@ -85,8 +85,8 @@ GET /maps/api/distancematrix/json
     &destinations=<C>|<D>|...
     &units=imperial|metric          # default imperial
     &mode=driving                   # only driving supported
-    &router=ts                      # optional; force the TypeScript router
-                                    # (default: Rust/WASM where applicable)
+    &router=wasm|ts                 # optional; override the auto-dispatch
+                                    # (default: per-query, see /docs)
 ```
 
 Response is byte-compatible with Google's Distance Matrix JSON, plus two

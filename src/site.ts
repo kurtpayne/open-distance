@@ -696,23 +696,28 @@ export function renderDocs(): string {
    (origins × destinations) per request.</p>
 
 <h3>Routing</h3>
-<p>Single-origin queries (1 origin × N destinations) and routes whose tile
-   corridor fits the cap are served by a Rust router compiled to WebAssembly
-   (<code>rust-router/</code>) that lives in the Worker isolate. Multi-origin
-   matrices and longer routes fall back to the TypeScript router. The
-   <code>x-od-router-impl</code> response header tells you which engine
-   answered:</p>
+<p>The Worker has two routers internally and picks between them per query:</p>
 <ul>
-  <li><code>wasm-one-to-many</code> &mdash; Rust Dijkstra one-to-many (the
-      common matrix case)</li>
-  <li><code>wasm</code> &mdash; Rust single-pair A*</li>
-  <li>(header absent) &mdash; TypeScript path served the query</li>
+  <li><strong>Rust → WebAssembly</strong>
+      (<code>rust-router/</code>, ~56 KB compiled).
+      Multi-tile Dijkstra one-to-many with sub-millisecond inner loop. Used
+      automatically when both the origin and every destination are literal
+      <code>lat,lng</code> inputs AND their bounding box is small (≤ ~3 km
+      diagonal). Force it on any other query with <code>?router=wasm</code>.</li>
+  <li><strong>TypeScript</strong> tiled lazy-fetch weighted A* over destination
+      groups. Used for everything else: address inputs, longer distances,
+      multi-origin matrices. Force it with <code>?router=ts</code>.</li>
 </ul>
-<p>Two additional headers report what the router did:
+<p>The <code>x-od-router-impl</code> response header tells you which engine
+   answered: <code>wasm-one-to-many</code>, <code>wasm</code>, or absent
+   (= TypeScript). Two diagnostic headers come with the WASM path:
    <code>x-od-router-settled</code> (node count) and
    <code>x-od-router-tiles</code> (corridor size).</p>
-<p>Force the TypeScript path with <code>?router=ts</code>. Useful if the
-   Rust path regresses on a specific query (please open an issue if so).</p>
+<p>Reason for the auto-dispatch heuristic: the Rust Dijkstra has no
+   heuristic, so on dense urban graphs it can settle 500K+ nodes before
+   reaching a destination 5+ miles away. The TS weighted A* doesn't have
+   that issue. We only auto-route to Rust where its sub-millisecond inner
+   loop is the dominant factor.</p>
 
 <h3>Response</h3>
 <pre><code>{

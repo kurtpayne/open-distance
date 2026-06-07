@@ -538,12 +538,12 @@ export async function handleCoverage(env: Env): Promise<Response> {
     attribution_endpoint: "/attribution",
     openaddresses_per_source_manifest: "/attribution/openaddresses.json",
     routing: {
-      default: "wasm",
+      default: "auto",
       implementations: {
-        wasm: "Rust-compiled WebAssembly. Multi-tile A* and one-to-many Dijkstra in linear memory. Default for single-origin queries.",
-        ts: "TypeScript tile-paged Dijkstra. Used for multi-origin matrix queries and routes whose corridor exceeds the 16-tile cap. Override the default via ?router=ts.",
+        wasm: "Rust-compiled WebAssembly. Multi-tile Dijkstra one-to-many with sub-ms inner loop. Auto-selected when origin + destinations are coords with a small bounding box; forceable via ?router=wasm.",
+        ts: "TypeScript tile-paged weighted A*. Handles address inputs, longer distances, multi-origin matrices. Forceable via ?router=ts.",
       },
-      response_header: "x-od-router-impl: 'wasm-one-to-many' | 'wasm' | (absent = ts served the query)",
+      response_header: "x-od-router-impl: 'wasm-one-to-many' | 'wasm' | (absent = TypeScript path)",
     },
     confidence_indicator: {
       response_fields: ["origin_matches", "destination_matches"],
