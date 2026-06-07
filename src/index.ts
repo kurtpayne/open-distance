@@ -4,7 +4,7 @@ import {
   healthCheck as v2Health,
   handleCoverage as v2Coverage,
 } from "./v2/distancematrix";
-import { renderIndex, renderDocs, renderPrivacy, htmlHeaders } from "./v2/site";
+import { renderIndex, renderDocs, renderPrivacy, renderAttribution, htmlHeaders } from "./v2/site";
 import { checkRateLimit, rateLimitHeaders, rateLimitResponse, readLimitsFromEnv } from "./v2/ratelimit";
 
 type Env = V2Env;
@@ -53,6 +53,23 @@ export default {
       if (url.pathname === "/privacy") {
         return new Response(renderPrivacy(), { headers: htmlHeaders() });
       }
+      if (url.pathname === "/attribution") {
+        return new Response(renderAttribution(), { headers: htmlHeaders() });
+      }
+      if (url.pathname === "/attribution/openaddresses.json") {
+        // Per-source OpenAddresses attribution manifest. Written to KV at
+        // ETL time (etl/v2/fetch_oa.py persists it; publish_manifest.sh
+        // uploads it). Returns an empty manifest with {sources: []} when
+        // the data hasn't been published yet.
+        const j = await env.CACHE.get("attribution:openaddresses", "text");
+        const body = j ?? '{"generated_at":null,"sources":[],"note":"per-source manifest not yet published; rerun the OA fetch + publish stages to populate"}';
+        return new Response(body, {
+          headers: {
+            "content-type": "application/json; charset=UTF-8",
+            "cache-control": "public, max-age=3600",
+          },
+        });
+      }
       // Agent + SEO discoverability files.
       if (url.pathname === "/robots.txt") {
         return new Response(
@@ -61,7 +78,7 @@ export default {
         );
       }
       if (url.pathname === "/sitemap.xml") {
-        const urls = ["/", "/docs", "/coverage", "/privacy"];
+        const urls = ["/", "/docs", "/coverage", "/attribution", "/privacy"];
         const body =
           '<?xml version="1.0" encoding="UTF-8"?>\n' +
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
@@ -86,12 +103,14 @@ distance + duration but don't need live traffic, POIs, or rendered maps.
 
 ## Endpoints
 
-- GET /maps/api/distancematrix/json  -- Google-shape Distance Matrix JSON
-- GET /coverage                       -- version, sources, supported match values
-- GET /healthz                        -- liveness probe
-- GET /                               -- landing + try-it form
-- GET /docs                           -- API documentation
-- GET /privacy                        -- privacy policy
+- GET /maps/api/distancematrix/json       -- Google-shape Distance Matrix JSON
+- GET /coverage                           -- version, sources w/ license URLs
+- GET /healthz                            -- liveness probe
+- GET /                                   -- landing + try-it form
+- GET /docs                               -- API documentation
+- GET /attribution                        -- consolidated attribution (HTML)
+- GET /attribution/openaddresses.json     -- per-source OA attribution manifest
+- GET /privacy                            -- privacy policy
 
 ## Goals
 
@@ -149,10 +168,14 @@ contract-critical applications use a commercial Distance Matrix API.
 
 ## Data sources and attribution
 
-- OpenStreetMap road geometry (ODbL)
-- US DOT National Address Database (public domain)
-- OpenAddresses per-county/city authority points (per-source attribution)
+- OpenStreetMap road geometry (ODbL 1.0): https://opendatacommons.org/licenses/odbl/1-0/
+- US DOT National Address Database (public domain, 17 USC 105)
+- OpenAddresses per-county/city authority points (per-source attribution -- enumerated at /attribution/openaddresses.json)
 - US Census TIGER 2024 (public domain) for street-range interpolation
+
+Every Distance Matrix JSON response includes a "copyrights" field reproducing
+the ODbL Sec 4.3 Produced Work notice and pointing back to /attribution.
+The /coverage endpoint includes license URLs per source.
 `;
         return new Response(body, {
           headers: { "content-type": "text/markdown; charset=UTF-8", "cache-control": "public, max-age=86400" },

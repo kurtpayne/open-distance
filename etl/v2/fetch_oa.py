@@ -54,7 +54,42 @@ def list_us_address_sources() -> list[dict]:
         and x.get("output", {}).get("output")
     ]
     log(f"  {len(runs)} US address sources")
+    persist_attribution_manifest(runs)
     return runs
+
+
+def persist_attribution_manifest(runs: list[dict]) -> None:
+    """Write data/v2/oa/attribution.json with per-source attribution + license.
+
+    OA's redistribution terms require downstream consumers to surface the
+    originating authority for each source. We capture the `attribution`,
+    `license`, `website`, `note`, and `source_url` fields when present so the
+    Worker can serve them at /attribution/openaddresses.json.
+    """
+    import datetime
+    sources = []
+    for r in runs:
+        src = r.get("source", "")
+        state = src.split("/")[1].upper() if src.startswith("us/") and "/" in src[3:] else ""
+        sources.append({
+            "source": src,
+            "state": state,
+            "attribution": r.get("attribution") or r.get("source_attribution") or "",
+            "license": r.get("license") or "",
+            "website": r.get("website") or r.get("data_website") or "",
+            "note": r.get("note") or "",
+        })
+    sources.sort(key=lambda s: s["source"])
+    out = {
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "source": "https://batch.openaddresses.io/api/data",
+        "count": len(sources),
+        "sources": sources,
+    }
+    OA_DIR.mkdir(parents=True, exist_ok=True)
+    path = OA_DIR / "attribution.json"
+    path.write_text(json.dumps(out, indent=2, ensure_ascii=False))
+    log(f"  wrote per-source attribution manifest -> {path} ({len(sources)} sources)")
 
 
 def slugify(src: str) -> tuple[str, str]:

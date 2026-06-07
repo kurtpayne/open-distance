@@ -13,7 +13,7 @@ Cloudflare for the entire continental US.
 Live at **https://open-distance.com** (also reachable at
 `https://hhapi.propspress.com` during the rebrand transition window).
 
-[License: Apache 2.0](LICENSE) · [Data attribution: NOTICE.md](NOTICE.md) ·
+[License: Apache 2.0](LICENSE) · [Data attribution: NOTICE](NOTICE) ·
 [Contributing](CONTRIBUTING.md)
 
 - Hostname: `https://open-distance.com` (and `https://hhapi.propspress.com`)
@@ -122,7 +122,9 @@ extra arrays surfacing geocode confidence:
 - Numbers come from our routed graph (no live traffic), so they differ from
   Google's results.
 - Response omits `fare`, `duration_in_traffic`, `geocoded_waypoints`,
-  `copyrights`, `warnings`.
+  `warnings`. The `copyrights` field IS populated (with the ODbL §4.3
+  Produced Work notice + a pointer to `/attribution`) so that attribution
+  travels with every response.
 - Response adds `origin_matches` / `destination_matches` (additive — old
   Google clients ignore unknown fields).
 - `place_id:` inputs return `NOT_FOUND`.

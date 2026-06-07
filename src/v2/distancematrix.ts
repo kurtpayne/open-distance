@@ -277,6 +277,15 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     origin_matches: originMatches,
     rows,
     status: "OK",
+    // ODbL §4.3 Produced Work notice. Travels with every response so that
+    // downstream callers who just render the JSON also surface the
+    // attribution required by OpenStreetMap. See /attribution for the
+    // full per-source manifest.
+    copyrights:
+      "Map data © OpenStreetMap contributors (ODbL 1.0). " +
+      "Addresses: NAD (US DOT, public domain), OpenAddresses (per-source -- see /attribution/openaddresses.json), " +
+      "OSM addr:* nodes (ODbL 1.0). Interpolation: US Census TIGER 2024 (public domain). " +
+      "Full attribution: https://open-distance.com/attribution",
   }, 200, "public, max-age=3600, s-maxage=3600");
 }
 
@@ -295,10 +304,41 @@ export async function handleCoverage(env: Env): Promise<Response> {
     coverage: "continental US (lower 48 + DC)",
     states,
     sources: {
-      roads: "OpenStreetMap (Geofabrik per-state, 0.25 deg tiles)",
-      addresses: ["NAD (US DOT, rooftop)", "OpenAddresses (rooftop)", "OSM addr:* nodes (interpolated)"],
-      interpolation: "Census TIGER 2024 edges-geodatabase (per-state)",
+      roads: {
+        name: "OpenStreetMap",
+        description: "Geofabrik per-state PBF extracts, built into 0.25 deg L0 road tiles",
+        license: "ODbL 1.0",
+        license_url: "https://opendatacommons.org/licenses/odbl/1-0/",
+      },
+      addresses: [
+        {
+          name: "NAD",
+          description: "US DOT National Address Database (rooftop)",
+          license: "public domain (17 USC § 105)",
+          license_url: "https://nationaladdressdata.gov/",
+        },
+        {
+          name: "OpenAddresses",
+          description: "Per-county / per-city authority points (rooftop)",
+          license: "per-source -- see attribution_endpoint",
+          license_url: "https://openaddresses.io/",
+        },
+        {
+          name: "OSM addr:* nodes",
+          description: "OpenStreetMap address-tagged nodes (interpolated)",
+          license: "ODbL 1.0",
+          license_url: "https://opendatacommons.org/licenses/odbl/1-0/",
+        },
+      ],
+      interpolation: {
+        name: "TIGER/Line 2024",
+        description: "US Census Bureau edges-geodatabase, per-state",
+        license: "public domain (work of the federal government)",
+        license_url: "https://www.census.gov/programs-surveys/geography.html",
+      },
     },
+    attribution_endpoint: "/attribution",
+    openaddresses_per_source_manifest: "/attribution/openaddresses.json",
     confidence_indicator: {
       response_fields: ["origin_matches", "destination_matches"],
       values: {

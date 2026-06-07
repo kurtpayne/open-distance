@@ -91,5 +91,21 @@ By contributing you agree your contributions are licensed under
 ## Data attribution
 
 When deploying a fork, surface the attribution required by the upstream data
-sources to your end-users. See [NOTICE.md](NOTICE.md) for the canonical list
+sources to your end-users. See [NOTICE](NOTICE) for the canonical list
 (OSM/ODbL, OpenAddresses per-source, NAD public domain, TIGER public domain).
+
+**Operator responsibilities** (moved here from NOTICE so the NOTICE file
+stays a pure attribution surface per Apache §4(d) convention):
+
+- The canonical hosted deployment at open-distance.com surfaces all required
+  attributions via the site footer, the `/attribution` page, the
+  `/attribution/openaddresses.json` per-source manifest, and the
+  `copyrights` field on every Distance Matrix response.
+- A forked deployment that changes any of these surfaces is responsible for
+  ensuring the ODbL §4.3 Produced Work notice still travels with API
+  responses, and that the per-source OpenAddresses attribution remains
+  reachable from at least one HTTP endpoint.
+- A forked deployment that publishes the R2 tile binaries directly (rather
+  than only serving derived API responses) takes on the ODbL §4.4(b)
+  share-alike obligation. The default deployment does NOT trigger this
+  because end-users only receive scalar Produced Works, not the binaries.

@@ -36,6 +36,19 @@ echo "$MANIFEST" | wrangler kv key put --namespace-id "$KV_ID" --remote "manifes
   && echo "[publish] wrote manifest:active to KV" \
   || echo "[publish] WARN: could not write to KV (continuing)"
 
+# Publish the per-source OpenAddresses attribution manifest so the Worker can
+# serve it at /attribution/openaddresses.json. Required by OA's redistribution
+# terms (downstream consumers must surface the originating authority for each
+# source). Written by etl/v2/fetch_oa.py during the fetch stage.
+OA_ATTR="$ROOT/data/v2/oa/attribution.json"
+if [[ -f "$OA_ATTR" ]]; then
+  wrangler kv key put --namespace-id "$KV_ID" --remote "attribution:openaddresses" --path "$OA_ATTR" >/dev/null 2>&1 \
+    && echo "[publish] wrote attribution:openaddresses to KV ($(wc -c < "$OA_ATTR" | tr -d ' ') bytes)" \
+    || echo "[publish] WARN: could not write attribution:openaddresses (continuing)"
+else
+  echo "[publish] NOTE: $OA_ATTR missing -- rerun fetch_oa to populate."
+fi
+
 # Confirm DATA_VERSION matches.
 CURRENT=$(grep 'DATA_VERSION = ' "$ROOT/wrangler.toml" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 if [[ "$CURRENT" != "$VERSION" ]]; then

@@ -452,6 +452,7 @@ ${extraHead}
     <a href="/">Try it</a>
     <a href="/docs">API</a>
     <a href="/coverage">/coverage</a>
+    <a href="/attribution">Attribution</a>
     <a href="/privacy">Privacy</a>
     <a href="https://github.com/kurtpayne/open-distance">GitHub</a>
   </nav>
@@ -466,7 +467,8 @@ ${body}
     registration, no API key. Apache 2.0 licensed.
     Data: OpenStreetMap (ODbL), U.S. NAD &amp; TIGER (public domain),
     OpenAddresses (per-source attribution). See
-    <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE.md">NOTICE</a>.
+    <a href="/attribution">attribution</a>
+    (canonical: <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE">NOTICE</a>).
   </p>
   <p>
     <strong>Provided as-is, no warranty.</strong> Built from public open data;
@@ -746,7 +748,7 @@ export function renderDocs(): string {
 
 <h3>Deviations from the legacy Distance Matrix shape</h3>
 <ul>
-  <li>No <code>fare</code>, <code>duration_in_traffic</code>, <code>geocoded_waypoints</code>, <code>copyrights</code>, or <code>warnings</code> fields.</li>
+  <li>No <code>fare</code>, <code>duration_in_traffic</code>, <code>geocoded_waypoints</code>, or <code>warnings</code> fields. <code>copyrights</code> IS populated (ODbL §4.3 Produced Work notice + pointer to <a href="/attribution">/attribution</a>).</li>
   <li><code>place_id:</code> inputs return <code>NOT_FOUND</code>.</li>
   <li>Only <code>mode=driving</code> is supported.</li>
   <li><code>match</code> arrays added (the legacy schema ignores unknown fields, so existing clients are unaffected).</li>
@@ -816,6 +818,83 @@ export function renderPrivacy(): string {
    hosted deployment at open-distance.com.</p>
 `;
   return shell("open-distance — privacy", body);
+}
+
+export function renderAttribution(): string {
+  const body = `
+<h2>Attribution</h2>
+<p>open-distance is computed from third-party open data. The notices below
+   must travel with any work derived from those sources (per their licenses).
+   The canonical text is in the
+   <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE">NOTICE</a>
+   file in the repository; the same content is reproduced here so it's
+   reachable without leaving the deployed site.</p>
+
+<h3>Road network — OpenStreetMap (ODbL 1.0)</h3>
+<p>Source: <a href="https://download.geofabrik.de/">Geofabrik</a> per-state PBF
+   extracts. Licensed under the
+   <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database License, version 1.0</a>.</p>
+<p>The road graph tile binaries served from R2 (<code>tiles/&lt;version&gt;/&lt;tx&gt;_&lt;ty&gt;.bin</code>)
+   are a Derivative Database of OpenStreetMap. Per ODbL §4.3, every Produced
+   Work computed from that Database — including every API response from
+   open-distance — must carry the following notice:</p>
+<blockquote>
+  © OpenStreetMap contributors. Map data available under the
+  <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database License (ODbL) v1.0</a>.
+</blockquote>
+<p>open-distance does not publish the Derivative Database itself — only the
+   Produced Works (scalar distance/duration responses) generated from it. The
+   unmodified upstream OSM extracts remain available at Geofabrik under their
+   original ODbL terms; no separate offer of the source data is made by this
+   project.</p>
+<p>Operators of forks that publish the tile binaries directly inherit the
+   ODbL §4.4(b) share-alike obligation: the published Derivative Database
+   must itself be available under ODbL.</p>
+
+<h3>Addresses — NAD (US DOT, public domain)</h3>
+<p>National Address Database, U.S. Department of Transportation. Public
+   domain under 17 U.S.C. § 105 (work of the federal government). No
+   attribution is legally required. We acknowledge it anyway:</p>
+<blockquote>Address data provided by the U.S. DOT National Address Database.</blockquote>
+
+<h3>Addresses — OpenAddresses (per-source)</h3>
+<p>Per-source per-county and per-city authorities aggregated at
+   <a href="https://batch.openaddresses.io/">batch.openaddresses.io</a>. Each
+   source carries its own license; the per-source attribution is enumerated
+   machine-readably at
+   <a href="/attribution/openaddresses.json"><code>/attribution/openaddresses.json</code></a>.
+   A blanket attribution line:</p>
+<blockquote>
+  Address data from <a href="https://openaddresses.io/">OpenAddresses</a>, used
+  under the per-source terms documented in the OA manifest.
+</blockquote>
+
+<h3>Addresses (supplementary) — OpenStreetMap <code>addr:*</code> nodes</h3>
+<p>Same ODbL 1.0 terms as the road network attribution above. The same
+   Produced Work notice applies.</p>
+
+<h3>Street segments — TIGER/Line 2024 (US Census, public domain)</h3>
+<p>TIGER/Line 2024 release, U.S. Census Bureau. Public domain. No
+   attribution required. We acknowledge it anyway:</p>
+<blockquote>Street segment data from the U.S. Census Bureau TIGER/Line 2024.</blockquote>
+
+<h3>Code dependencies</h3>
+<p>All runtime and dev dependencies are MIT, ISC, Apache-2.0, BSD, or
+   similarly permissive. The only copyleft component in the dependency tree
+   is LGPL-3.0-or-later on <code>sharp-libvips</code> native binaries, which
+   are wrangler dev-only and never shipped to Cloudflare or to end-users.
+   See
+   <a href="https://github.com/kurtpayne/open-distance/blob/main/package-lock.json">package-lock.json</a>
+   for the full SPDX inventory.</p>
+
+<h3>How attribution travels with API responses</h3>
+<p>Every Distance Matrix JSON response carries a <code>copyrights</code>
+   field reproducing the required short-form notice. The
+   <a href="/coverage">/coverage</a> endpoint includes per-source license URLs
+   and a pointer back to this page. The Yoke score badge in the footer is
+   the only external image surface; everything else is served same-origin.</p>
+`;
+  return shell("open-distance — attribution", body);
 }
 
 export function htmlHeaders(): Record<string, string> {
