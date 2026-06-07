@@ -40,6 +40,41 @@ export default {
         impl: "wasm",
       }), { headers: { "content-type": "application/json" } });
     }
+    if (url.pathname === "/healthz/wasm/l1") {
+      // Run a full L1 cross-country route through the Rust router. Fetches
+      // the L1 binary from R2, copies into WASM linear memory, runs Rust's
+      // snap + forward A* over the sparse-HashMap state. Used to validate
+      // that the new (smaller) L1 binary fits the isolate budget before
+      // wiring it into the main Distance Matrix path.
+      const o = (url.searchParams.get("o") || "").split(",").map(Number);
+      const d = (url.searchParams.get("d") || "").split(",").map(Number);
+      if (o.length !== 2 || d.length !== 2 || o.some(Number.isNaN) || d.some(Number.isNaN)) {
+        return new Response(JSON.stringify({ ok: false, reason: "usage: /healthz/wasm/l1?o=lat,lon&d=lat,lon" }),
+          { status: 400, headers: { "content-type": "application/json" } });
+      }
+      const { loadWasmRouter, l1Route, isLoaded } = await import("./v2/wasm_router");
+      const wasmMod = (await import("../rust-router/target/wasm32-unknown-unknown/release/od_router.wasm")).default;
+      const tFetch0 = Date.now();
+      const obj = await env.GRAPH.get(`overlay/${env.DATA_VERSION}/l1.bin`);
+      if (!obj) return new Response(JSON.stringify({ ok: false, reason: "L1 binary missing in R2" }),
+        { status: 503, headers: { "content-type": "application/json" } });
+      const l1Bytes = new Uint8Array(await obj.arrayBuffer());
+      const tFetchMs = Date.now() - tFetch0;
+      const tLoad0 = Date.now();
+      if (!isLoaded()) await loadWasmRouter(wasmMod);
+      const tLoadMs = Date.now() - tLoad0;
+      const tRun0 = Date.now();
+      const r = l1Route(l1Bytes, o[0], o[1], d[0], d[1], 1_000_000);
+      const tRunMs = Date.now() - tRun0;
+      return new Response(JSON.stringify({
+        ok: r.ok, time_s: r.timeS, len_m: r.lenM, settled: r.settledCount,
+        src_node: r.srcNode, dst_node: r.dstNode,
+        src_snap_dist_m: r.srcSnapDistM, dst_snap_dist_m: r.dstSnapDistM,
+        l1_bytes: l1Bytes.byteLength,
+        fetch_ms: tFetchMs, load_ms: tLoadMs, run_ms: tRunMs,
+        impl: "wasm-l1",
+      }), { headers: { "content-type": "application/json" } });
+    }
     if (url.pathname === "/healthz/wasm/route") {
       // Real end-to-end probe for the Rust multi-tile A*. Pass two lat,lon
       // pairs as ?o=... &d=... ; we snap each to a tile node, fetch a
