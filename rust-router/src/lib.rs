@@ -504,13 +504,6 @@ pub unsafe extern "C" fn od_l1_route(
     args_len: usize,
     result_ptr: *mut u8,
 ) -> u32 {
-    // Sentinel: write 0xDEADBEEF to result[8..12] (settled slot) at the very
-    // start so we can tell if the function was entered at all when debugging.
-    // Subsequent code overwrites this with the real value on success.
-    if !result_ptr.is_null() {
-        let out = std::slice::from_raw_parts_mut(result_ptr, 28);
-        out[8..12].copy_from_slice(&0xDEAD_BEEFu32.to_le_bytes());
-    }
     if args_ptr.is_null() || result_ptr.is_null() || args_len < 24 { return 0; }
     let args = std::slice::from_raw_parts(args_ptr, args_len);
     let src_lat = f32::from_le_bytes(args[0..4].try_into().unwrap());

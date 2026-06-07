@@ -65,7 +65,7 @@ DRIVABLE_HIGHWAY = {
 # drops urban interchange ramps; long-haul routing still works because the
 # endpoint snap finds the nearest mainline node directly.
 L1_HIGHWAY = {
-    "motorway",
+    "motorway", "motorway_link",
 }
 
 # Fallback free-flow speed (km/h) by OSM highway tag.
