@@ -98,18 +98,24 @@ ROUTES: list[tuple[str, str, str, str]] = [
 ]
 
 
-def hit_od(origin: str, dest: str) -> dict:
-    qs = urllib.parse.urlencode({
+def hit_od(origin: str, dest: str, router: str = "") -> dict:
+    params = {
         "origins": origin,
         "destinations": dest,
         "units": "imperial",
-    })
+    }
+    if router:
+        params["router"] = router
+    qs = urllib.parse.urlencode(params)
     req = urllib.request.Request(f"{OD_BASE}/maps/api/distancematrix/json?{qs}",
                                  headers={"User-Agent": "od-benchmark/1.0"})
     t0 = time.time()
     with urllib.request.urlopen(req, timeout=45) as r:
         data = json.loads(r.read().decode())
-    return {"json": data, "wall_ms": int((time.time() - t0) * 1000)}
+        # Capture which engine actually answered (via the x-od-router-impl
+        # header we set on the WASM path).
+        impl = r.headers.get("x-od-router-impl") or "ts"
+    return {"json": data, "wall_ms": int((time.time() - t0) * 1000), "impl": impl}
 
 
 def hit_google(origin: str, dest: str, key: str) -> dict:
@@ -147,6 +153,7 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", help="Write a markdown report here (default: stdout)")
     ap.add_argument("--limit", type=int, default=0, help="Only run the first N routes (debug)")
+    ap.add_argument("--router", default="", help="Force a router on the open-distance side (e.g. 'wasm'). Empty = let the Worker pick the default TS path.")
     args = ap.parse_args(argv)
 
     key = os.environ.get("GOOGLE_MAPS_API_KEY")
@@ -161,7 +168,7 @@ def main(argv):
     for label, cat, o, d in routes:
         print(f"[bench] {label}...", flush=True)
         try:
-            od = hit_od(o, d)
+            od = hit_od(o, d, args.router)
             gg = hit_google(o, d, key)
         except Exception as e:
             print(f"  ERROR: {e}", file=sys.stderr)
