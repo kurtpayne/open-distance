@@ -82,9 +82,32 @@ function decode(buf: ArrayBuffer): Tile {
 // overlay (~115 MB peaks under load) and request/heap.
 const TILE_CACHE_BYTE_BUDGET = 48 * 1024 * 1024;
 
-let cache: Map<number, Tile> = new Map();   // insertion-order LRU
+let cache: Map<number, Tile> = new Map();   // insertion-order LRU (decoded)
 let pending: Map<number, Promise<Tile>> = new Map();
 let cacheBytes = 0;
+
+// Raw-bytes LRU for the WASM router. Shares insertion-order semantics with
+// the decoded LRU. Populated by BOTH getTile() (the TS path) and
+// getTileBytes() (the WASM path) so the two routers share warmup. See
+// docs/design/raw-bytes-tile-cache.md for the rationale.
+const BYTES_CACHE_BYTE_BUDGET = 32 * 1024 * 1024;
+let bytesCache: Map<number, Uint8Array> = new Map();
+let bytesPending: Map<number, Promise<Uint8Array | null>> = new Map();
+let bytesCacheBytes = 0;
+
+function bytesLruTouch(packed: number, bytes: Uint8Array): void {
+  bytesCache.delete(packed);
+  bytesCache.set(packed, bytes);
+  bytesCacheBytes += bytes.byteLength;
+  while (bytesCacheBytes > BYTES_CACHE_BYTE_BUDGET && bytesCache.size > 1) {
+    const oldest = bytesCache.keys().next().value as number | undefined;
+    if (oldest === undefined) break;
+    const b = bytesCache.get(oldest);
+    if (!b) break;
+    bytesCache.delete(oldest);
+    bytesCacheBytes -= b.byteLength;
+  }
+}
 
 function lruTouch(packed: number, tile: Tile): void {
   // Re-insert moves to most-recent position in JS Maps.
@@ -106,9 +129,9 @@ function tileKey(version: string, tx: number, ty: number): string {
 }
 
 /**
- * Fetch a tile's raw bytes directly from R2, bypassing the decode + LRU
- * cache. Used by the WASM router which wants to copy the bytes into its
- * own linear memory and decode there.
+ * Fetch a tile's raw bytes for the WASM router. Hits + populates the
+ * bytes LRU so warm-isolate WASM queries don't re-pay the R2 round trip.
+ * Also dedups in-flight fetches the same way getTile does.
  */
 export async function getTileBytes(
   bucket: R2Bucket,
@@ -116,9 +139,27 @@ export async function getTileBytes(
   tx: number,
   ty: number,
 ): Promise<Uint8Array | null> {
-  const obj = await bucket.get(tileKey(version, tx, ty));
-  if (!obj) return null;
-  return new Uint8Array(await obj.arrayBuffer());
+  const packed = packTileId(tx, ty);
+  const hit = bytesCache.get(packed);
+  if (hit) {
+    bytesCache.delete(packed); bytesCache.set(packed, hit);  // LRU touch
+    return hit;
+  }
+  const inflight = bytesPending.get(packed);
+  if (inflight) return inflight;
+  const p = (async () => {
+    const obj = await bucket.get(tileKey(version, tx, ty));
+    if (!obj) return null;
+    const bytes = new Uint8Array(await obj.arrayBuffer());
+    bytesLruTouch(packed, bytes);
+    bytesPending.delete(packed);
+    return bytes;
+  })().catch(e => {
+    bytesPending.delete(packed);
+    throw e;
+  });
+  bytesPending.set(packed, p);
+  return p;
 }
 
 export async function getTile(
@@ -141,6 +182,9 @@ export async function getTile(
     const obj = await bucket.get(tileKey(version, tx, ty));
     if (!obj) return null;
     const buf = await obj.arrayBuffer();
+    // Populate the bytes LRU first so a follow-up WASM query for the same
+    // tile hits warm cache. The decoded LRU and bytes LRU share warmup.
+    bytesLruTouch(packed, new Uint8Array(buf));
     const tile = decode(buf);
     lruTouch(packed, tile);
     pending.delete(packed);

@@ -60,11 +60,12 @@ DRIVABLE_HIGHWAY = {
 }
 
 # Subset that lifts into the L1 (highway) overlay. Keep this TIGHT -- the
-# whole graph must fit in a 128 MB Worker isolate after decoding into typed
-# arrays + a computed reverse CSR. Motorway-only keeps us comfortably under
-# that ceiling and covers ~all true long-haul corridors.
+# whole graph must fit in a 128 MB Worker isolate alongside per-request
+# scratch + the Rust router's WASM linear memory. Motorway-only (no _link)
+# drops urban interchange ramps; long-haul routing still works because the
+# endpoint snap finds the nearest mainline node directly.
 L1_HIGHWAY = {
-    "motorway", "motorway_link",
+    "motorway",
 }
 
 # Fallback free-flow speed (km/h) by OSM highway tag.
