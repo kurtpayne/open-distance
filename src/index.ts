@@ -15,6 +15,37 @@ export default {
 
     // -- API endpoints --------------------------------------------------------
     if (url.pathname === "/healthz") return v2Health(env);
+    if (url.pathname === "/healthz/wasm") {
+      // Exercises the Rust-compiled WASM router end-to-end on a synthetic
+      // 3-node tile (0 -> 1 -> 2, 100 m / 10 s per edge). Returns the timings
+      // and the size of the bound module so a deploy can be verified without
+      // touching the production routing path. See rust-router/src/lib.rs.
+      const { loadWasmRouter, astarIntraTile, isLoaded } =
+        await import("./v2/wasm_router");
+      if (!env.ROUTER_WASM) {
+        return new Response(
+          JSON.stringify({ ok: false, reason: "ROUTER_WASM not bound on this env" }),
+          { status: 503, headers: { "content-type": "application/json" } },
+        );
+      }
+      const t0 = Date.now();
+      if (!isLoaded()) await loadWasmRouter(env.ROUTER_WASM);
+      const tLoad = Date.now() - t0;
+      // Build a tiny synthetic tile in TS (same bytes as the Rust host test).
+      const buf = synthSmallTile();
+      const t1 = Date.now();
+      const r = astarIntraTile(buf, 0, 2, 1000);
+      const tRun = Date.now() - t1;
+      return new Response(JSON.stringify({
+        ok: r.ok,
+        time_s: r.timeS,
+        len_m: r.lenM,
+        settled: r.settledCount,
+        load_ms: tLoad,
+        run_ms: tRun,
+        impl: "wasm",
+      }), { headers: { "content-type": "application/json" } });
+    }
     if (url.pathname === "/coverage") return v2Coverage(env);
     if (url.pathname === "/maps/api/distancematrix/json") {
       // KV-backed per-IP rate limiter. Default 25/sec, 500/hour, 10k/day per
@@ -186,3 +217,30 @@ The /coverage endpoint includes license URLs per source.
     return new Response("Not Found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+// Build the synthetic tile from rust-router/src/lib.rs's host test:
+// 3 nodes (0 -> 1 -> 2), edges 0->1 (100 m / 10 s) and 1->2 (200 m / 20 s).
+// Matches the format produced by etl/v2/_tile_io.py / decoded by src/v2/tiles.ts.
+function synthSmallTile(): Uint8Array {
+  const buf = new ArrayBuffer(32 + 3 * 4 * 2 + (3 + 1) * 4 + 2 * 4 * 3 + (1 + 1) * 4 + 3 * 4);
+  const dv = new DataView(buf);
+  let p = 0;
+  dv.setUint32(p, 0x30544848, true); p += 4;   // MAGIC
+  dv.setUint32(p, 1, true); p += 4;             // fmt_ver
+  dv.setInt32(p, 0, true); p += 4;              // tx
+  dv.setInt32(p, 0, true); p += 4;              // ty
+  dv.setUint32(p, 3, true); p += 4;             // n_local
+  dv.setUint32(p, 0, true); p += 4;             // n_extern
+  dv.setUint32(p, 2, true); p += 4;             // m_edges
+  dv.setUint16(p, 1, true); p += 2;             // grid_n_lon
+  dv.setUint16(p, 1, true); p += 2;             // grid_n_lat
+  for (const v of [37.0, 37.0, 37.0]) { dv.setFloat32(p, v, true); p += 4; }
+  for (const v of [-122.0, -121.999, -121.998]) { dv.setFloat32(p, v, true); p += 4; }
+  for (const v of [0, 1, 2, 2]) { dv.setUint32(p, v, true); p += 4; }
+  for (const v of [1, 2]) { dv.setUint32(p, v, true); p += 4; }
+  for (const v of [10.0, 20.0]) { dv.setFloat32(p, v, true); p += 4; }
+  for (const v of [100.0, 200.0]) { dv.setFloat32(p, v, true); p += 4; }
+  for (const v of [0, 3]) { dv.setUint32(p, v, true); p += 4; }
+  for (const v of [0, 1, 2]) { dv.setUint32(p, v, true); p += 4; }
+  return new Uint8Array(buf);
+}

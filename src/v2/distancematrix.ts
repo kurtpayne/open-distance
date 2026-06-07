@@ -38,6 +38,10 @@ export interface Env {
   CACHE: KVNamespace;
   DATA_VERSION: string;
   API_KEY: string;
+  // Rust-compiled WASM router. Bound via wrangler.toml [wasm_modules].
+  // Optional: present when the Worker is built with the WASM module
+  // packaged, absent on older deploys -- gate usage with `if (env.ROUTER_WASM)`.
+  ROUTER_WASM?: WebAssembly.Module;
   // Per-state D1 shards: GEOCODE_CA, GEOCODE_NY, ...
   // Accessed dynamically by src/v2/geocode.ts via env[`GEOCODE_${state}`].
   [k: string]: unknown;

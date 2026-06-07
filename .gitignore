@@ -18,5 +18,8 @@ venv/
 .DS_Store
 .claude/
 scripts/cf_env.sh
-rust-router/target/
 rust-router/Cargo.lock
+rust-router/target/
+!rust-router/target/wasm32-unknown-unknown/
+!rust-router/target/wasm32-unknown-unknown/release/
+!rust-router/target/wasm32-unknown-unknown/release/od_router.wasm
