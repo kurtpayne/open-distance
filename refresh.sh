@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# open-distance v2 refresh -- single-command data pipeline.
+# open-distance data refresh -- single-command ETL pipeline.
 #
 # Designed to be cron-able on macOS, idempotent across stages, and
 # resumable on failure. Each subcommand is a stage of the pipeline:

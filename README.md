@@ -43,7 +43,7 @@ geometry, turn-by-turn, isochrones, or live traffic, use one of them.
 | Deploy model          | Self-host server (VM) | Self-host server (VM) | Cloudflare Worker (edge) | SaaS |
 | Cost (continental US) | ~$50–200/mo VM | ~$50–200/mo VM | ~$5–10/mo Cloudflare | Per-call ($) |
 | Cold start            | Minutes (load graph) | Seconds (tile lazy-load) | ~30 ms isolate | n/a |
-| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good; slower cross-country before L1 overlay | Fast |
+| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good; cross-country routes (>~1500 mi) return ZERO_RESULTS | Fast |
 | Route geometry        | Yes | Yes | **No** (scalar distance + duration) | Yes |
 | Turn-by-turn          | Yes | Yes | No | Yes |
 | Live traffic          | No  | Plugin | No | Yes |
@@ -122,8 +122,7 @@ extra arrays surfacing geocode confidence:
 
 - No `key=` required. The public endpoint is rate-limited per IP (KV-backed,
   default 25/sec, 500/hour, 10k/day). Self-hosters can change limits via env
-  vars or disable rate limiting entirely. Forks that need a private endpoint
-  can re-introduce key auth in `src/auth.ts`.
+  vars or disable rate limiting entirely.
 - Numbers come from our routed graph (no live traffic), so they differ from
   Google's results.
 - Response omits `fare`, `duration_in_traffic`, `geocoded_waypoints`,
@@ -246,7 +245,7 @@ past D1's per-query CPU cap on big states).
 | **OSM `addr:*` nodes** | `interpolated` | ~10M | Geofabrik per-state PBFs. |
 | **Centroid** (ZIP / city only) | — | — | Never returned; the geocoder rejects to `NOT_FOUND`. |
 
-Merge precedence in `etl/v2/merge_addresses.py`: NAD > OA > OSM, deduped by
+Merge precedence in `etl/merge_addresses.py`: NAD > OA > OSM, deduped by
 `(normalized, ~10 m geographic bucket)`.
 
 In addition, the per-state shard has a `segments` table from **Census TIGER
@@ -258,20 +257,20 @@ along the matching segment by house-number range. Returned as `interpolated`.
 
 ## Worker internals
 
-- `src/v2/state_parser.ts`: parse state code from query (USPS 2-letter / state name / ZIP-3 prefix lookup).
-- `src/v2/geocode.ts`: sharded D1 lookup → falls back to TIGER segment interpolation when addresses miss.
-- `src/v2/interpolate.ts`: TIGER segment query + linear interpolation.
-- `src/v2/tiles.ts`: tile binary loader + isolate-global LRU + R2 fetch.
+- `src/state_parser.ts`: parse state code from query (USPS 2-letter / state name / ZIP-3 prefix lookup).
+- `src/geocode.ts`: sharded D1 lookup → falls back to TIGER segment interpolation when addresses miss.
+- `src/interpolate.ts`: TIGER segment query + linear interpolation.
+- `src/tiles.ts`: tile binary loader + isolate-global LRU + R2 fetch.
   Snap returns top-K nearest road nodes with ≥200 m separation so the next
   candidate can save the request when the first is on an isolated graph
   fragment (private campus roads like `1 Hacker Way`).
-- `src/v2/router.ts`: tiled one-to-many **weighted A\*** over destination
+- `src/router.ts`: tiled one-to-many **weighted A\*** over destination
   *groups* (any candidate of each destination satisfies that destination).
   Heap key `f = g + 1.5 × (haversine_to_nearest_unsatisfied_dest / 30 m/s)`.
   Slightly inadmissible — paths may be up to ~50% non-optimal in theory,
   empirically within minutes-level accuracy for cross-region. Settles at 2M
   nodes max → `ZERO_RESULTS` if cap hit.
-- `src/v2/distancematrix.ts`: top-level handler. Leg cache in KV under
+- `src/distancematrix.ts`: top-level handler. Leg cache in KV under
   `leg2:` (src node → top-1 dest node → time+meters).
 - Geocode cache prefix `geo4:` in KV — bumped historically when normalizer
   semantics changed. NOT_FOUND results are intentionally not cached.

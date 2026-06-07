@@ -16,7 +16,7 @@ L1_ENABLED = "0"
 
 # Rust-compiled WASM router. Built from rust-router/ via:
 #   cd rust-router && cargo build --release --target wasm32-unknown-unknown
-# Output is ~30 KB; imported directly in src/v2/wasm_router.ts.
+# Output is ~56 KB; imported directly in src/wasm_router.ts.
 # ES-module workers can't use [wasm_modules]; this rule + the import handles it.
 [[rules]]
 type = "CompiledWasm"

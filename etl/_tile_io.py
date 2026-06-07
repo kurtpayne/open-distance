@@ -1,4 +1,4 @@
-"""Shared tile binary I/O for v2.
+"""Shared tile binary I/O.
 
 Per-tile binary layout (little-endian):
 
