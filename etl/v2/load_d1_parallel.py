@@ -180,6 +180,12 @@ async def load_state(
 async def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
+    ap.add_argument(
+        "--bindings",
+        default=None,
+        help="Path to a toml file with [[d1_databases]] entries. "
+             "Defaults to wrangler.toml at the repo root.",
+    )
     ap.add_argument("states", nargs="*")
     args = ap.parse_args(argv)
 
@@ -189,9 +195,9 @@ async def main(argv: list[str]) -> int:
         print("ERROR: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID required", file=sys.stderr)
         return 1
 
-    toml_path = DATA.parent.parent / "wrangler.toml"
+    toml_path = Path(args.bindings) if args.bindings else DATA.parent.parent / "wrangler.toml"
     bindings = parse_bindings(toml_path)
-    log(f"loaded {len(bindings)} bindings from wrangler.toml")
+    log(f"loaded {len(bindings)} bindings from {toml_path}")
 
     states = args.states if args.states else sorted(BY_CODE)
     states_to_load: list[tuple[str, str, Path]] = []

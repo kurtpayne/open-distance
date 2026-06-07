@@ -17,3 +17,4 @@ __pycache__/
 venv/
 .DS_Store
 .claude/
+scripts/cf_env.sh
