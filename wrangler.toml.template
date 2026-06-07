@@ -5,10 +5,6 @@ account_id = "__CF_ACCOUNT_ID__"
 
 [vars]
 DATA_VERSION = "2026-06"
-# Set to "1" to enable the L1 (motorway) highway overlay for long-haul
-# cross-country routes (NYC <-> LA-scale). Requires l1-overlay.bin uploaded
-# to R2 under overlay/<DATA_VERSION>/l1.bin. Adds ~115 MB of isolate memory.
-L1_ENABLED = "1"
 
 [[r2_buckets]]
 binding = "GRAPH"

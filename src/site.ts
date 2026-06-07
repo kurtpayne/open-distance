@@ -565,7 +565,7 @@ export function renderIndex(): string {
   <tr><td>Commute</td><td>8</td><td>5.1 %</td><td>58.0 %</td><td>29.7 %</td><td>52.9 %</td></tr>
   <tr><td>Cross-state</td><td>6</td><td>10.4 %</td><td>13.1 %</td><td>29.5 %</td><td>60.6 %</td></tr>
   <tr><td>Traffic-prone</td><td>6</td><td>11.0 %</td><td>39.7 %</td><td>35.7 %</td><td>63.4 %</td></tr>
-  <tr><td>Short urban</td><td>4</td><td>25.1 %</td><td>41.1 %</td><td>70.9 %</td><td>80.8 %</td></tr>
+  <tr><td>Short urban</td><td>4</td><td>20.4 %</td><td>28.8 %</td><td>66.3 %</td><td>80.8 %</td></tr>
 </tbody>
 </table>
 
@@ -575,10 +575,13 @@ export function renderIndex(): string {
    categories is expected and honest. Distance numbers are within ~1 % on
    inter-city, long, and rural routes; gap on short-urban traffic-modeled
    routes is largely about which one-way the router prefers.</p>
-<p><strong>What we know is broken right now</strong>: 3 cross-country routes
-   (NYC↔LA, Seattle↔Miami, Boston↔Houston) return <code>ZERO_RESULTS</code>
-   because the highway overlay that handles >~1500 mi paths is in a memory
-   rework. The other 41 of 44 sample routes return real answers.</p>
+<p><strong>What doesn't work yet</strong>: 3 cross-country routes (NYC↔LA,
+   Seattle↔Miami, Boston↔Houston) return <code>ZERO_RESULTS</code> because
+   the tiled L0 router exhausts its node-settled cap before reaching the
+   destination on routes much past 1500 mi. The other 41 of 44 sample
+   routes return real answers. Cross-country support is a future enhancement
+   tracked against a highway-overlay implementation that fits the Worker
+   isolate memory budget.</p>
 <ul>
   <li><strong>Geocode confidence</strong>: rooftop (NAD / OpenAddresses) is
       comparable to a commercial geocoder; interpolated (OSM / TIGER) is
@@ -650,7 +653,7 @@ export function renderIndex(): string {
     <tr><th scope="row">Deploy model</th><td>Self-host server (VM)</td><td>Self-host server (VM)</td><td>Cloudflare Worker (edge)</td><td>SaaS</td></tr>
     <tr><th scope="row">Cost (US-48)</th><td>~$50–200/mo VM</td><td>~$50–200/mo VM</td><td>~$5–10/mo Cloudflare</td><td>Per-call ($)</td></tr>
     <tr><th scope="row">Cold start</th><td>Minutes (load graph)</td><td>Seconds (tile lazy-load)</td><td>~30 ms isolate</td><td>n/a</td></tr>
-    <tr><th scope="row">Raw routing speed</th><td>Best-in-class (CH)</td><td>Good (tiled)</td><td>Good; slower cross-country before L1 overlay</td><td>Fast</td></tr>
+    <tr><th scope="row">Raw routing speed</th><td>Best-in-class (CH)</td><td>Good (tiled)</td><td>Good (sub-ms inner loop in Rust); doesn't handle &gt; ~1500 mi today</td><td>Fast</td></tr>
     <tr><th scope="row">Route geometry</th><td>Yes</td><td>Yes</td><td>No (scalar distance + duration)</td><td>Yes</td></tr>
     <tr><th scope="row">Turn-by-turn</th><td>Yes</td><td>Yes</td><td>No</td><td>Yes</td></tr>
     <tr><th scope="row">Live traffic</th><td>No</td><td>Plugin</td><td>No</td><td>Yes</td></tr>

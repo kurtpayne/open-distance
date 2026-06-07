@@ -5,14 +5,6 @@ account_id = "b5cdaad4db136b796354280697e0ceb9"
 
 [vars]
 DATA_VERSION = "2026-06"
-# L1 (motorway) highway overlay for long-haul cross-country routes
-# (NYC <-> LA-scale). Currently OFF: the 110 MB binary stays resident
-# in the isolate once any request touches it, which OOMs subsequent
-# L0-only requests on the same isolate (warm isolates retain state).
-# Re-enable once the L1 loader does zero-copy decode in WASM linear
-# memory (rust-router/ follow-up -- the buffer + scratch can live in
-# the same 128 MB pool without doubling up against JS heap).
-L1_ENABLED = "0"
 
 # Rust-compiled WASM router. Built from rust-router/ via:
 #   cd rust-router && cargo build --release --target wasm32-unknown-unknown

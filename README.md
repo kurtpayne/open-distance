@@ -43,7 +43,7 @@ geometry, turn-by-turn, isochrones, or live traffic, use one of them.
 | Deploy model          | Self-host server (VM) | Self-host server (VM) | Cloudflare Worker (edge) | SaaS |
 | Cost (continental US) | ~$50–200/mo VM | ~$50–200/mo VM | ~$5–10/mo Cloudflare | Per-call ($) |
 | Cold start            | Minutes (load graph) | Seconds (tile lazy-load) | ~30 ms isolate | n/a |
-| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good; cross-country routes (>~1500 mi) return ZERO_RESULTS | Fast |
+| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good (sub-ms Rust inner loop); doesn't handle > ~1500 mi today | Fast |
 | Route geometry        | Yes | Yes | **No** (scalar distance + duration) | Yes |
 | Turn-by-turn          | Yes | Yes | No | Yes |
 | Live traffic          | No  | Plugin | No | Yes |
@@ -140,7 +140,7 @@ extra arrays surfacing geocode confidence:
 - Cross-region routes (SF↔LA, NYC↔Boston, Atlanta↔Miami) work via weighted A*
   (k=1.5 heuristic over haversine / 30 m/s). True cross-country routes
   (NYC↔LA-scale) may still hit the 2M-node settled cap → `ZERO_RESULTS`;
-  the L1 highway overlay is the fix.
+  these return `ZERO_RESULTS` today.
 - Successful Distance Matrix responses send
   `Cache-Control: public, max-age=3600` — identical queries are absorbed by
   Cloudflare's edge cache for the house-hunting consumer loop.
@@ -284,7 +284,6 @@ src/
   geocode.ts             per-state D1 sharded geocoder + TIGER fallback
   interpolate.ts         TIGER segment lookup + linear interpolation
   normalize.ts           address normalizer
-  overlay.ts             L1 highway overlay (currently disabled in production)
   ratelimit.ts           KV-backed per-IP rate limiter (GDPR-clean: hashed IP)
   router.ts              tiled lazy-fetch one-to-many Dijkstra (TS fallback)
   site.ts                landing / docs / privacy / attribution HTML
