@@ -67,8 +67,11 @@ export async function checkRateLimit(
   salt = "od-default-salt-rotate-me",
 ): Promise<RateLimitResult> {
   const now = Math.floor(Date.now() / 1000);
+  // KV expirationTtl minimum is 60 seconds. The per-sec bucket key already
+  // rotates every second via `bucket: now`, so a longer TTL only leaves stale
+  // counter rows in KV for an extra ~minute -- they don't affect counting.
   const tiers = [
-    { name: "sec" as const,  bucket: now,                 limit: cfg.perSec,  ttl: 5     },
+    { name: "sec" as const,  bucket: now,                     limit: cfg.perSec,  ttl: 60    },
     { name: "hour" as const, bucket: Math.floor(now / 3600),  limit: cfg.perHour, ttl: 3700  },
     { name: "day" as const,  bucket: Math.floor(now / 86400), limit: cfg.perDay,  ttl: 90000 },
   ].filter(t => t.limit > 0);
