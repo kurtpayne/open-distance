@@ -206,6 +206,8 @@ ${body}
   commercial API like Google Maps Distance Matrix. See the
   <a href="https://github.com/kurtpayne/open-distance/blob/main/LICENSE">LICENSE</a>
   for the full warranty disclaimer.
+  <br><br>
+  <a href="https://yoke.lol/open-distance.com"><img src="https://yoke.lol/badge/open-distance.com.svg" alt="Yoke score for open-distance.com"></a>
 </footer>
 </body></html>`;
 }
@@ -552,7 +554,7 @@ export function htmlHeaders(): Record<string, string> {
       "default-src 'self'; " +
       "script-src 'self' 'unsafe-inline'; " +
       "style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data:; " +
+      "img-src 'self' data: https://yoke.lol; " +
       "connect-src 'self'; " +
       "frame-ancestors 'none'; " +
       "base-uri 'none'; " +
