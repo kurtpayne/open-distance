@@ -1,0 +1,294 @@
+name = "open-distance"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+account_id = "__CF_ACCOUNT_ID__"
+
+[vars]
+DATA_VERSION = "2026-06"
+
+[[r2_buckets]]
+binding = "GRAPH"
+bucket_name = "od-graph"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "__KV_CACHE_ID__"
+
+# Inline WASM router (rust-router/) — built by scripts/build_wasm_router.sh.
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+fallthrough = false
+
+# Self-hosted Space Grotesk + JetBrains Mono woff2 files at public/fonts/*.woff2.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# DurableObject that holds the L1 national highway overlay (~131 MB binary).
+# Used for long-haul cross-country routing (> ~620 mi straight-line).
+[[durable_objects.bindings]]
+name = "L1_ROUTER"
+class_name = "L1Router"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["L1Router"]
+
+# Add a [[routes]] block per domain you want the Worker to serve.
+# The Hostname must be a zone in your CF account.
+[[routes]]
+pattern = "__CUSTOM_DOMAIN__"
+custom_domain = true
+
+[limits]
+cpu_ms = 30000
+
+# Per-state D1 shards (one per US state + DC). The bootstrap step provisions
+# these and `scripts/materialize_wrangler.sh` substitutes each database_id.
+# Bindings are accessed dynamically by the Worker as env[`GEOCODE_${state}`].
+
+[[d1_databases]]
+binding = "GEOCODE_AL"
+database_name = "od-geo-al"
+database_id = "__D1_GEOCODE_AL__"
+
+[[d1_databases]]
+binding = "GEOCODE_AZ"
+database_name = "od-geo-az"
+database_id = "__D1_GEOCODE_AZ__"
+
+[[d1_databases]]
+binding = "GEOCODE_AR"
+database_name = "od-geo-ar"
+database_id = "__D1_GEOCODE_AR__"
+
+[[d1_databases]]
+binding = "GEOCODE_CA"
+database_name = "od-geo-ca"
+database_id = "__D1_GEOCODE_CA__"
+
+[[d1_databases]]
+binding = "GEOCODE_CO"
+database_name = "od-geo-co"
+database_id = "__D1_GEOCODE_CO__"
+
+[[d1_databases]]
+binding = "GEOCODE_CT"
+database_name = "od-geo-ct"
+database_id = "__D1_GEOCODE_CT__"
+
+[[d1_databases]]
+binding = "GEOCODE_DE"
+database_name = "od-geo-de"
+database_id = "__D1_GEOCODE_DE__"
+
+[[d1_databases]]
+binding = "GEOCODE_DC"
+database_name = "od-geo-dc"
+database_id = "__D1_GEOCODE_DC__"
+
+[[d1_databases]]
+binding = "GEOCODE_FL"
+database_name = "od-geo-fl"
+database_id = "__D1_GEOCODE_FL__"
+
+[[d1_databases]]
+binding = "GEOCODE_GA"
+database_name = "od-geo-ga"
+database_id = "__D1_GEOCODE_GA__"
+
+[[d1_databases]]
+binding = "GEOCODE_ID"
+database_name = "od-geo-id"
+database_id = "__D1_GEOCODE_ID__"
+
+[[d1_databases]]
+binding = "GEOCODE_IL"
+database_name = "od-geo-il"
+database_id = "__D1_GEOCODE_IL__"
+
+[[d1_databases]]
+binding = "GEOCODE_IN"
+database_name = "od-geo-in"
+database_id = "__D1_GEOCODE_IN__"
+
+[[d1_databases]]
+binding = "GEOCODE_IA"
+database_name = "od-geo-ia"
+database_id = "__D1_GEOCODE_IA__"
+
+[[d1_databases]]
+binding = "GEOCODE_KS"
+database_name = "od-geo-ks"
+database_id = "__D1_GEOCODE_KS__"
+
+[[d1_databases]]
+binding = "GEOCODE_KY"
+database_name = "od-geo-ky"
+database_id = "__D1_GEOCODE_KY__"
+
+[[d1_databases]]
+binding = "GEOCODE_LA"
+database_name = "od-geo-la"
+database_id = "__D1_GEOCODE_LA__"
+
+[[d1_databases]]
+binding = "GEOCODE_ME"
+database_name = "od-geo-me"
+database_id = "__D1_GEOCODE_ME__"
+
+[[d1_databases]]
+binding = "GEOCODE_MD"
+database_name = "od-geo-md"
+database_id = "__D1_GEOCODE_MD__"
+
+[[d1_databases]]
+binding = "GEOCODE_MA"
+database_name = "od-geo-ma"
+database_id = "__D1_GEOCODE_MA__"
+
+[[d1_databases]]
+binding = "GEOCODE_MI"
+database_name = "od-geo-mi"
+database_id = "__D1_GEOCODE_MI__"
+
+[[d1_databases]]
+binding = "GEOCODE_MN"
+database_name = "od-geo-mn"
+database_id = "__D1_GEOCODE_MN__"
+
+[[d1_databases]]
+binding = "GEOCODE_MS"
+database_name = "od-geo-ms"
+database_id = "__D1_GEOCODE_MS__"
+
+[[d1_databases]]
+binding = "GEOCODE_MO"
+database_name = "od-geo-mo"
+database_id = "__D1_GEOCODE_MO__"
+
+[[d1_databases]]
+binding = "GEOCODE_MT"
+database_name = "od-geo-mt"
+database_id = "__D1_GEOCODE_MT__"
+
+[[d1_databases]]
+binding = "GEOCODE_NE"
+database_name = "od-geo-ne"
+database_id = "__D1_GEOCODE_NE__"
+
+[[d1_databases]]
+binding = "GEOCODE_NV"
+database_name = "od-geo-nv"
+database_id = "__D1_GEOCODE_NV__"
+
+[[d1_databases]]
+binding = "GEOCODE_NH"
+database_name = "od-geo-nh"
+database_id = "__D1_GEOCODE_NH__"
+
+[[d1_databases]]
+binding = "GEOCODE_NJ"
+database_name = "od-geo-nj"
+database_id = "__D1_GEOCODE_NJ__"
+
+[[d1_databases]]
+binding = "GEOCODE_NM"
+database_name = "od-geo-nm"
+database_id = "__D1_GEOCODE_NM__"
+
+[[d1_databases]]
+binding = "GEOCODE_NY"
+database_name = "od-geo-ny"
+database_id = "__D1_GEOCODE_NY__"
+
+[[d1_databases]]
+binding = "GEOCODE_NC"
+database_name = "od-geo-nc"
+database_id = "__D1_GEOCODE_NC__"
+
+[[d1_databases]]
+binding = "GEOCODE_ND"
+database_name = "od-geo-nd"
+database_id = "__D1_GEOCODE_ND__"
+
+[[d1_databases]]
+binding = "GEOCODE_OH"
+database_name = "od-geo-oh"
+database_id = "__D1_GEOCODE_OH__"
+
+[[d1_databases]]
+binding = "GEOCODE_OK"
+database_name = "od-geo-ok"
+database_id = "__D1_GEOCODE_OK__"
+
+[[d1_databases]]
+binding = "GEOCODE_OR"
+database_name = "od-geo-or"
+database_id = "__D1_GEOCODE_OR__"
+
+[[d1_databases]]
+binding = "GEOCODE_PA"
+database_name = "od-geo-pa"
+database_id = "__D1_GEOCODE_PA__"
+
+[[d1_databases]]
+binding = "GEOCODE_RI"
+database_name = "od-geo-ri"
+database_id = "__D1_GEOCODE_RI__"
+
+[[d1_databases]]
+binding = "GEOCODE_SC"
+database_name = "od-geo-sc"
+database_id = "__D1_GEOCODE_SC__"
+
+[[d1_databases]]
+binding = "GEOCODE_SD"
+database_name = "od-geo-sd"
+database_id = "__D1_GEOCODE_SD__"
+
+[[d1_databases]]
+binding = "GEOCODE_TN"
+database_name = "od-geo-tn"
+database_id = "__D1_GEOCODE_TN__"
+
+[[d1_databases]]
+binding = "GEOCODE_TX"
+database_name = "od-geo-tx"
+database_id = "__D1_GEOCODE_TX__"
+
+[[d1_databases]]
+binding = "GEOCODE_UT"
+database_name = "od-geo-ut"
+database_id = "__D1_GEOCODE_UT__"
+
+[[d1_databases]]
+binding = "GEOCODE_VT"
+database_name = "od-geo-vt"
+database_id = "__D1_GEOCODE_VT__"
+
+[[d1_databases]]
+binding = "GEOCODE_VA"
+database_name = "od-geo-va"
+database_id = "__D1_GEOCODE_VA__"
+
+[[d1_databases]]
+binding = "GEOCODE_WA"
+database_name = "od-geo-wa"
+database_id = "__D1_GEOCODE_WA__"
+
+[[d1_databases]]
+binding = "GEOCODE_WV"
+database_name = "od-geo-wv"
+database_id = "__D1_GEOCODE_WV__"
+
+[[d1_databases]]
+binding = "GEOCODE_WI"
+database_name = "od-geo-wi"
+database_id = "__D1_GEOCODE_WI__"
+
+[[d1_databases]]
+binding = "GEOCODE_WY"
+database_name = "od-geo-wy"
+database_id = "__D1_GEOCODE_WY__"

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: https://github.com/kurtpayne/open-distance/security/advisories/new
+    about: Found a security issue? Please report it privately, not as a public issue.
+  - name: API question
+    url: https://open-distance.com/docs
+    about: How do I call the API? What's the response shape? Try the docs first.

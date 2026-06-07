@@ -1,0 +1,116 @@
+open-distance
+Copyright 2026 Kurt Payne and contributors
+
+This product includes software developed by Kurt Payne and the
+open-distance contributors, licensed under the Apache License, Version 2.0
+(see LICENSE).
+
+================================================================
+Third-party data — attribution required notices
+================================================================
+
+The open-distance Worker computes responses from third-party open data.
+None of the source data is distributed by this repository; refresh.sh
+downloads it on demand to a local `data/` directory that is gitignored.
+
+The attribution clauses below MUST travel with any Produced Work or
+Derivative Database derived from the named sources (per their licenses).
+The notices are reproduced here verbatim; operator guidance on where to
+surface them in a forked deployment lives in CONTRIBUTING.md.
+
+
+----------------------------------------------------------------
+1. Road network — OpenStreetMap (ODbL 1.0)
+----------------------------------------------------------------
+
+Source: Geofabrik per-state PBF extracts (https://download.geofabrik.de/).
+Licensed under the Open Database License, version 1.0
+(https://opendatacommons.org/licenses/odbl/1-0/).
+
+The road graph tile binaries served from R2
+(`tiles/<version>/<tx>_<ty>.bin`) are a Derivative Database of
+OpenStreetMap. Per ODbL §4.3, any Produced Work computed from this
+Database (including every API response from open-distance) must carry
+the following notice:
+
+    © OpenStreetMap contributors. Map data available under the
+    Open Database License (ODbL) v1.0
+    (https://opendatacommons.org/licenses/odbl/1-0/).
+
+open-distance does not publish the Derivative Database itself — only the
+Produced Works (scalar distance/duration responses) generated from it.
+The unmodified upstream OSM extracts remain available at Geofabrik under
+their original ODbL terms; no separate offer of the source data is made
+by this project.
+
+Operators of forks that publish the tile binaries directly (e.g. as a
+downloadable dataset, public mirror, or shared bucket) inherit the
+ODbL §4.4(b) share-alike obligation: the published Derivative Database
+must itself be available under ODbL.
+
+
+----------------------------------------------------------------
+2. Addresses — NAD (US DOT, public domain)
+----------------------------------------------------------------
+
+National Address Database, U.S. Department of Transportation. Public
+domain under 17 U.S.C. § 105 (work of the federal government). No
+attribution is legally required.
+
+We acknowledge it anyway:
+
+    Address data provided by the U.S. DOT National Address Database.
+
+
+----------------------------------------------------------------
+3. Addresses — OpenAddresses (per-source)
+----------------------------------------------------------------
+
+Per-source per-county and per-city authorities aggregated at
+https://batch.openaddresses.io/. Each source carries its own license;
+the OA project publishes a machine-readable manifest with per-source
+license terms.
+
+A blanket attribution line:
+
+    Address data from OpenAddresses (https://openaddresses.io/), used
+    under the per-source terms documented in the OA manifest.
+
+The per-source attribution is enumerated at:
+
+    https://open-distance.com/attribution/openaddresses.json
+
+Operators of forks that redistribute address point data directly (as
+opposed to operating an API that returns derived geocodes) must surface
+the per-source attribution from that manifest.
+
+
+----------------------------------------------------------------
+4. Addresses (supplementary) — OpenStreetMap `addr:*` nodes
+----------------------------------------------------------------
+
+Same ODbL 1.0 terms as the road network attribution in §1. The same
+Produced Work notice applies.
+
+
+----------------------------------------------------------------
+5. Street segments — TIGER/Line 2024 (US Census, public domain)
+----------------------------------------------------------------
+
+TIGER/Line 2024 release, U.S. Census Bureau. Public domain. No
+attribution required.
+
+We acknowledge it anyway:
+
+    Street segment data from the U.S. Census Bureau TIGER/Line 2024.
+
+
+----------------------------------------------------------------
+6. Code dependencies
+----------------------------------------------------------------
+
+All runtime and dev dependencies are MIT, ISC, Apache-2.0, BSD, or
+similarly permissive. The only copyleft component anywhere in the
+dependency tree is LGPL-3.0-or-later on `sharp-libvips` native binaries,
+which are wrangler dev-only and never shipped to Cloudflare or to
+end-users. See package-lock.json for the full SPDX inventory.

@@ -1,0 +1,31 @@
+.env
+.env.*
+!.env.example
+/data/
+*.pbf
+*.bin
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+node_modules/
+.wrangler/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+.claude/
+scripts/cf_env.sh
+rust-router/Cargo.lock
+rust-router/target/
+!rust-router/target/wasm32-unknown-unknown/
+!rust-router/target/wasm32-unknown-unknown/release/
+!rust-router/target/wasm32-unknown-unknown/release/od_router.wasm
+
+# wrangler.toml is per-deployment (has live IDs); template is the public version
+wrangler.toml
+
+# Pre-launch legal review draft; delete after the lawyer pass
+legal-review.md
