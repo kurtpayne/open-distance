@@ -40,7 +40,8 @@ if [[ -s "$FAILS" ]]; then
   echo "[upload-r2] re-trying failures from $FAILS"
   mv "$FAILS" "$FAILS.retry"
   : > "$FAILS"
-  xargs -P "$CONCURRENCY" -I{} -a "$FAILS.retry" bash -c '
+  # BSD xargs (macOS) lacks `-a FILE`; read the retry list from stdin instead.
+  xargs -P "$CONCURRENCY" -I{} bash -c '
     f="$1"
     base=$(basename "$f")
     key="tiles/$VERSION/$base"
@@ -49,7 +50,7 @@ if [[ -s "$FAILS" ]]; then
     else
       echo "$f" >> "$FAILS"
     fi
-  ' _ {}
+  ' _ {} < "$FAILS.retry"
   if [[ -s "$FAILS" ]]; then
     echo "[upload-r2] still failed: $(wc -l < $FAILS | tr -d " ")"
     head -5 "$FAILS"
