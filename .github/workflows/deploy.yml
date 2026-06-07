@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'rust-router/target/wasm32-unknown-unknown/release/*.wasm'
       - 'wrangler.toml'
       - 'package.json'
       - 'package-lock.json'
