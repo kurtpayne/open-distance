@@ -199,6 +199,13 @@ ${body}
   Data: OpenStreetMap (ODbL), U.S. NAD &amp; TIGER (public domain),
   OpenAddresses (per-source attribution). See
   <a href="https://github.com/kurtpayne/open-distance/blob/main/NOTICE.md">NOTICE</a>.
+  <br><br>
+  <strong>Provided as-is, no warranty.</strong> Built from public open data; no
+  live traffic; coverage and accuracy vary. If your application is safety- or
+  contract-critical (emergency dispatch, regulated SLAs, legal billing), use a
+  commercial API like Google Maps Distance Matrix. See the
+  <a href="https://github.com/kurtpayne/open-distance/blob/main/LICENSE">LICENSE</a>
+  for the full warranty disclaimer.
 </footer>
 </body></html>`;
 }
@@ -314,6 +321,18 @@ export function renderIndex(): string {
       not a goal for this project.</li>
 </ul>
 
+<h2>Fitness for purpose</h2>
+<p><strong>open-distance is provided as-is, with no warranty.</strong> The
+   Apache 2.0 license disclaims all warranties — express and implied. If
+   you're building anything where a wrong answer has real consequences —
+   <em>emergency dispatch, contract-billed deliveries, regulated SLAs,
+   safety-of-life routing</em> — use a commercial API like Google Maps
+   Distance Matrix.</p>
+<p>The hosted instance is a free shared resource on Cloudflare. It can
+   change, slow down, get rate-limited harder, or go offline at any time
+   without notice. If you need uptime guarantees, self-host. If you need
+   answers you can put your name behind, pay a vendor that offers an SLA.</p>
+
 <h2>How this compares to OSRM, Valhalla, and commercial APIs</h2>
 <p>The open-source routing ecosystem already has excellent engines.
    <strong>open-distance is not a routing engine</strong> — it's a
@@ -413,12 +432,41 @@ export function renderDocs(): string {
   <li><strong>500</strong> requests per hour</li>
   <li><strong>10,000</strong> requests per day</li>
 </ul>
-<p>On a hit, the API returns HTTP <code>429</code> with
-   <code>"status":"OVER_QUERY_LIMIT"</code>, a <code>Retry-After</code> header,
-   and an <code>x-ratelimit-tier</code> header (<code>sec</code>,
-   <code>hour</code>, or <code>day</code>) indicating which bucket overflowed.
-   If you regularly bump against these, self-host: limits are configurable per
-   tier via env vars, or set all three to 0 for an unlimited deployment.</p>
+
+<p><strong>There is no paid tier.</strong> The hosted instance is intentionally
+   a free shared resource for casual use. If you need higher limits, self-host
+   on your own Cloudflare account — limits are env-var configurable per tier,
+   or set all three to <code>0</code> for an unlimited deployment.</p>
+
+<h4>Response headers</h4>
+<p>Every API response (both <code>200</code> success and <code>429</code> rate-limited)
+   carries the following headers so you can self-throttle without a probe
+   round-trip:</p>
+<table>
+<thead><tr><th>Header</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td><code>X-RateLimit-Limit-Second</code></td><td>Configured per-second limit (25 by default)</td></tr>
+<tr><td><code>X-RateLimit-Remaining-Second</code></td><td>Requests left in the current 1-second window</td></tr>
+<tr><td><code>X-RateLimit-Reset-Second</code></td><td>Seconds until the 1-second window rolls (always 1)</td></tr>
+<tr><td><code>X-RateLimit-Limit-Hour</code></td><td>Configured per-hour limit (500 by default)</td></tr>
+<tr><td><code>X-RateLimit-Remaining-Hour</code></td><td>Requests left in the current hour bucket</td></tr>
+<tr><td><code>X-RateLimit-Reset-Hour</code></td><td>Seconds until the hour bucket rolls</td></tr>
+<tr><td><code>X-RateLimit-Limit-Day</code></td><td>Configured per-day limit (10,000 by default)</td></tr>
+<tr><td><code>X-RateLimit-Remaining-Day</code></td><td>Requests left in the current day bucket</td></tr>
+<tr><td><code>X-RateLimit-Reset-Day</code></td><td>Seconds until the day bucket rolls</td></tr>
+<tr><td><code>RateLimit-Limit</code></td><td><a href="https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/" target="_blank" rel="noopener noreferrer">IETF draft header</a>: limit of the tightest tier</td></tr>
+<tr><td><code>RateLimit-Remaining</code></td><td>Remaining of the tightest tier</td></tr>
+<tr><td><code>RateLimit-Reset</code></td><td>Seconds until the tightest tier resets</td></tr>
+</tbody>
+</table>
+
+<h4>When you hit the limit</h4>
+<p>You get HTTP <code>429</code> with <code>"status":"OVER_QUERY_LIMIT"</code>,
+   a <code>Retry-After</code> header (seconds until the offending tier rolls),
+   and <code>X-RateLimit-Tier</code> = <code>sec</code> / <code>hour</code> /
+   <code>day</code> indicating which bucket overflowed. The response body
+   includes a link back to the source so you can self-host with your own
+   limits.</p>
 
 <h3>Deviations from the legacy Distance Matrix shape</h3>
 <ul>

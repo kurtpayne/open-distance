@@ -24,6 +24,13 @@ Live at **https://open-distance.com** (also reachable at
   - `GET /healthz` — liveness + sentinel-tile probe
   - `GET /coverage` — version, sources, supported `match` values, deviations
 
+> **Provided as-is, no warranty.** Built from public open data; no live
+> traffic; coverage and accuracy vary. If your application is safety- or
+> contract-critical (emergency dispatch, regulated SLAs, legal billing), use
+> a commercial API. The Apache 2.0 [LICENSE](LICENSE) disclaims all warranties
+> — express and implied. The hosted instance at open-distance.com is a free
+> shared resource and can change, slow down, or go offline without notice.
+
 ## How this compares to OSRM, Valhalla, and commercial APIs
 
 `open-distance` is not a routing engine — it's a Google Distance Matrix-shape
@@ -130,6 +137,46 @@ extra arrays surfacing geocode confidence:
 - Successful Distance Matrix responses send
   `Cache-Control: public, max-age=3600` — identical queries are absorbed by
   Cloudflare's edge cache for the house-hunting consumer loop.
+
+## Rate limits and response headers
+
+Per-IP rate limits on the hosted deployment:
+
+| Window  | Limit  | Env var       |
+|---------|--------|---------------|
+| Second  | 25     | `RL_PER_SEC`  |
+| Hour    | 500    | `RL_PER_HOUR` |
+| Day     | 10,000 | `RL_PER_DAY`  |
+
+**There is no paid tier.** The hosted instance is a free shared resource for
+casual use. If you need higher limits, self-host on your own Cloudflare
+account and tune the env vars above. Set any of them to `0` to disable that
+tier; set all three to `0` for an unlimited deployment (e.g. private fork
+inside a trusted network).
+
+Every API response — both `200` success and `429` rate-limited — carries
+headers so callers can self-throttle without an extra probe:
+
+| Header                            | Meaning                                    |
+|-----------------------------------|--------------------------------------------|
+| `X-RateLimit-Limit-Second`        | Configured per-second limit                |
+| `X-RateLimit-Remaining-Second`    | Requests left in the current 1-s window    |
+| `X-RateLimit-Reset-Second`        | Seconds until that window rolls (always 1) |
+| `X-RateLimit-Limit-Hour`          | Configured per-hour limit                  |
+| `X-RateLimit-Remaining-Hour`      | Requests left in the current hour bucket   |
+| `X-RateLimit-Reset-Hour`          | Seconds until the hour bucket rolls        |
+| `X-RateLimit-Limit-Day`           | Configured per-day limit                   |
+| `X-RateLimit-Remaining-Day`       | Requests left in the current day bucket    |
+| `X-RateLimit-Reset-Day`           | Seconds until the day bucket rolls         |
+| `RateLimit-Limit`                 | [IETF draft][rl-draft]: tightest tier's limit |
+| `RateLimit-Remaining`             | Remaining of the tightest tier             |
+| `RateLimit-Reset`                 | Seconds until the tightest tier resets     |
+
+[rl-draft]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
+
+When a tier overflows, the API returns HTTP `429` with
+`"status":"OVER_QUERY_LIMIT"`, a `Retry-After` header, and
+`X-RateLimit-Tier = sec | hour | day` indicating which bucket overflowed.
 
 ## Populating data from a clean clone
 

@@ -7,20 +7,20 @@
 //   - the per-window bucket_id means tomorrow's keys can't be cross-referenced
 //     with today's
 //   - rotating RL_SALT additionally severs all linkability across the rotation
-// Combined with the short TTLs (5s / ~1h / ~1d), the only data retained is
-// "this hash hit N times during this short window" -- no IPs, no addresses.
+// Combined with the short TTLs, the only data retained is "this hash hit N
+// times during this short window" -- no IPs, no addresses.
 //
 // Three tiers (per-second / per-hour / per-day); a request is blocked when
 // any tier is over its limit. Defaults 25/sec, 500/hour, 10000/day per IP.
 // Tunable via env vars RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY (0 disables).
 //
-// Cost notes:
-//   - 1 KV read + 1 KV write per tier on every rate-limited request.
-//   - Workers Paid ($5/mo) includes 10M KV reads + 1M writes/month.
-//   - On the free plan (100k KV reads + 1k writes/day), traffic naturally
-//     caps well below the rate limits anyway.
-//   - For very high traffic, switch to Cloudflare's WAF Rate Limiting rules
-//     (config in the dashboard, no per-request KV cost).
+// Every response (both allowed and 429) carries headers:
+//   X-RateLimit-Limit-{Second,Hour,Day}      = configured limit for that tier
+//   X-RateLimit-Remaining-{Second,Hour,Day}  = requests left in the current window
+//   X-RateLimit-Reset-{Second,Hour,Day}      = seconds until that window rolls
+// plus the IETF draft single-policy header set:
+//   RateLimit-Limit / RateLimit-Remaining / RateLimit-Reset
+// reflecting whichever tier is currently the tightest constraint.
 
 export interface RateLimitConfig {
   perSec: number;
@@ -34,10 +34,25 @@ export const DEFAULT_LIMITS: RateLimitConfig = {
   perDay: 10_000,
 };
 
+export type TierName = "sec" | "hour" | "day";
+
+export interface TierState {
+  name: TierName;
+  limit: number;
+  // Requests already used in the current window (BEFORE this request consumed a slot).
+  used: number;
+  // Requests left AFTER this request is counted. Floored at 0.
+  remaining: number;
+  // Seconds until the current window rolls and the counter resets.
+  resetIn: number;
+}
+
 export interface RateLimitResult {
   ok: boolean;
+  tiers: TierState[];
+  // Set when ok=false:
   retryAfter?: number;
-  limitName?: "sec" | "hour" | "day";
+  limitName?: TierName;
   currentCount?: number;
 }
 
@@ -60,6 +75,12 @@ async function ipBucketKey(salt: string, ip: string, tier: string, bucket: numbe
   return `rl:${tier}:${hex.slice(0, 16)}`;
 }
 
+function tierResetIn(name: TierName, now: number): number {
+  if (name === "sec") return 1;
+  if (name === "hour") return 3600 - (now % 3600);
+  return 86400 - (now % 86400);
+}
+
 export async function checkRateLimit(
   kv: KVNamespace,
   ip: string,
@@ -71,23 +92,33 @@ export async function checkRateLimit(
   // rotates every second via `bucket: now`, so a longer TTL only leaves stale
   // counter rows in KV for an extra ~minute -- they don't affect counting.
   const tiers = [
-    { name: "sec" as const,  bucket: now,                     limit: cfg.perSec,  ttl: 60    },
-    { name: "hour" as const, bucket: Math.floor(now / 3600),  limit: cfg.perHour, ttl: 3700  },
-    { name: "day" as const,  bucket: Math.floor(now / 86400), limit: cfg.perDay,  ttl: 90000 },
+    { name: "sec"  as TierName, bucket: now,                     limit: cfg.perSec,  ttl: 60    },
+    { name: "hour" as TierName, bucket: Math.floor(now / 3600),  limit: cfg.perHour, ttl: 3700  },
+    { name: "day"  as TierName, bucket: Math.floor(now / 86400), limit: cfg.perDay,  ttl: 90000 },
   ].filter(t => t.limit > 0);
-  if (tiers.length === 0) return { ok: true };
+  if (tiers.length === 0) return { ok: true, tiers: [] };
 
   const keys = await Promise.all(tiers.map(t => ipBucketKey(salt, ip, t.name, t.bucket)));
   const counts = await Promise.all(keys.map(k => kv.get(k, "text")));
+  const used = counts.map(c => parseInt(c || "0", 10));
 
   // Check all tiers, return the first one that's blown.
   for (let i = 0; i < tiers.length; i++) {
-    const c = parseInt(counts[i] || "0", 10);
-    if (c >= tiers[i].limit) {
-      const retryAfter = tiers[i].name === "sec" ? 1
-                       : tiers[i].name === "hour" ? 3600
-                       : 86400;
-      return { ok: false, retryAfter, limitName: tiers[i].name, currentCount: c };
+    if (used[i] >= tiers[i].limit) {
+      const states: TierState[] = tiers.map((t, j) => ({
+        name: t.name,
+        limit: t.limit,
+        used: used[j],
+        remaining: Math.max(0, t.limit - used[j]),
+        resetIn: tierResetIn(t.name, now),
+      }));
+      return {
+        ok: false,
+        tiers: states,
+        retryAfter: tierResetIn(tiers[i].name, now),
+        limitName: tiers[i].name,
+        currentCount: used[i],
+      };
     }
   }
 
@@ -95,12 +126,37 @@ export async function checkRateLimit(
   // hitting multiple CF colos at once may slightly exceed the per-second
   // limit, but the per-hour and per-day buckets are accurate enough for
   // abuse mitigation.
-  await Promise.all(tiers.map((t, i) => {
-    const c = parseInt(counts[i] || "0", 10);
-    return kv.put(keys[i], String(c + 1), { expirationTtl: t.ttl });
-  }));
+  await Promise.all(tiers.map((t, i) => kv.put(keys[i], String(used[i] + 1), { expirationTtl: t.ttl })));
 
-  return { ok: true };
+  // After incrementing, `remaining` is computed against the new used count.
+  const states: TierState[] = tiers.map((t, j) => ({
+    name: t.name,
+    limit: t.limit,
+    used: used[j] + 1,
+    remaining: Math.max(0, t.limit - (used[j] + 1)),
+    resetIn: tierResetIn(t.name, now),
+  }));
+  return { ok: true, tiers: states };
+}
+
+// Build the X-RateLimit-* and IETF RateLimit-* headers for any response.
+export function rateLimitHeaders(tiers: TierState[]): Record<string, string> {
+  const h: Record<string, string> = {};
+  for (const t of tiers) {
+    const k = t.name === "sec" ? "second" : t.name === "hour" ? "hour" : "day";
+    h[`x-ratelimit-limit-${k}`] = String(t.limit);
+    h[`x-ratelimit-remaining-${k}`] = String(t.remaining);
+    h[`x-ratelimit-reset-${k}`] = String(t.resetIn);
+  }
+  // IETF draft RateLimit headers: surface the tier with the smallest remaining
+  // count so a single-header consumer sees the binding constraint.
+  if (tiers.length > 0) {
+    const tightest = [...tiers].sort((a, b) => a.remaining - b.remaining)[0];
+    h["ratelimit-limit"] = String(tightest.limit);
+    h["ratelimit-remaining"] = String(tightest.remaining);
+    h["ratelimit-reset"] = String(tightest.resetIn);
+  }
+  return h;
 }
 
 export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig): Response {
@@ -115,7 +171,7 @@ export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig)
     error_message:
       `Rate limit exceeded: ${tierLimit} requests per ${tierWindow} per IP. ` +
       `Try again in ${result.retryAfter ?? 60} second(s). ` +
-      `Self-host with your own limits: https://github.com/kurtpayne/open-distance`,
+      `No paid tier -- self-host with your own limits: https://github.com/kurtpayne/open-distance`,
     rows: [],
     origin_addresses: [],
     destination_addresses: [],
@@ -128,6 +184,7 @@ export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig)
       "cache-control": "no-store",
       "x-ratelimit-tier": result.limitName ?? "",
       "x-ratelimit-current": String(result.currentCount ?? 0),
+      ...rateLimitHeaders(result.tiers),
     },
   });
 }

@@ -5,7 +5,7 @@ import {
   handleCoverage as v2Coverage,
 } from "./v2/distancematrix";
 import { renderIndex, renderDocs, renderPrivacy, htmlHeaders } from "./v2/site";
-import { checkRateLimit, rateLimitResponse, readLimitsFromEnv } from "./v2/ratelimit";
+import { checkRateLimit, rateLimitHeaders, rateLimitResponse, readLimitsFromEnv } from "./v2/ratelimit";
 
 type Env = V2Env;
 
@@ -32,7 +32,14 @@ export default {
       const salt = String(envR.RL_SALT ?? "od-default-salt-rotate-me");
       const rl = await checkRateLimit(env.CACHE, ip, limits, salt);
       if (!rl.ok) return rateLimitResponse(rl, limits);
-      return v2Handle(url, env);
+      const resp = await v2Handle(url, env);
+      // Mirror the rate-limit state back to the caller on every successful
+      // response so they can self-throttle without a probe round-trip.
+      const headers = new Headers(resp.headers);
+      for (const [k, v] of Object.entries(rateLimitHeaders(rl.tiers))) {
+        headers.set(k, v);
+      }
+      return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
     }
 
     // -- HTML site -----------------------------------------------------------
@@ -116,6 +123,29 @@ rooftop      = exact mapped point (NAD or OpenAddresses dataset)
 interpolated = OSM addr-tagged node, or TIGER segment interpolation (~30-100m)
 coords       = caller supplied "lat,lng" directly
 "" (empty)   = geocode failed; raw input echoed
+
+## Rate limits
+
+Per-IP, KV-backed. There is no paid tier.
+
+- 25 requests per second
+- 500 requests per hour
+- 10,000 requests per day
+
+Every response carries headers: X-RateLimit-Limit-Second / -Hour / -Day,
+X-RateLimit-Remaining-Second / -Hour / -Day, X-RateLimit-Reset-Second /
+-Hour / -Day, plus the IETF draft RateLimit-Limit / -Remaining / -Reset
+reflecting the tightest currently-binding tier.
+
+Over the limit returns HTTP 429 with status=OVER_QUERY_LIMIT and a
+Retry-After header. If you need higher limits, fork and self-host on
+your own Cloudflare account; limits are env-var configurable.
+
+## Warranty
+
+Provided as-is with no warranty (Apache 2.0). Built from public open
+data; no live traffic; coverage and accuracy vary. For safety- or
+contract-critical applications use a commercial Distance Matrix API.
 
 ## Data sources and attribution
 
