@@ -178,7 +178,10 @@ export default {
     }
 
     // -- HTML site -----------------------------------------------------------
-    if (req.method === "GET") {
+    // Allow HEAD too -- uptime monitors + crawlers expect HEAD on /, /docs,
+    // etc. to return the same status as GET. Workers strips the body for HEAD
+    // automatically, so we can return the GET-shaped Response unchanged.
+    if (req.method === "GET" || req.method === "HEAD") {
       if (url.pathname === "/" || url.pathname === "/try") {
         return new Response(renderIndex(), { headers: htmlHeaders() });
       }
