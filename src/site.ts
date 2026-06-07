@@ -687,11 +687,32 @@ export function renderDocs(): string {
     ?origins=&lt;A&gt;|&lt;B&gt;|...
     &amp;destinations=&lt;C&gt;|&lt;D&gt;|...
     &amp;units=imperial|metric        # default imperial
-    &amp;mode=driving                  # only mode supported</code></pre>
+    &amp;mode=driving                  # only mode supported
+    &amp;router=ts                     # optional: force the TypeScript router
+                                  # (default: Rust/WASM when applicable)</code></pre>
 
 <p>Each origin/destination is either an address string or a <code>lat,lng</code>
    pair. Multiple endpoints separated by <code>|</code>. Up to 100 elements
    (origins × destinations) per request.</p>
+
+<h3>Routing</h3>
+<p>Single-origin queries (1 origin × N destinations) and routes whose tile
+   corridor fits the cap are served by a Rust router compiled to WebAssembly
+   (<code>rust-router/</code>) that lives in the Worker isolate. Multi-origin
+   matrices and longer routes fall back to the TypeScript router. The
+   <code>x-od-router-impl</code> response header tells you which engine
+   answered:</p>
+<ul>
+  <li><code>wasm-one-to-many</code> &mdash; Rust Dijkstra one-to-many (the
+      common matrix case)</li>
+  <li><code>wasm</code> &mdash; Rust single-pair A*</li>
+  <li>(header absent) &mdash; TypeScript path served the query</li>
+</ul>
+<p>Two additional headers report what the router did:
+   <code>x-od-router-settled</code> (node count) and
+   <code>x-od-router-tiles</code> (corridor size).</p>
+<p>Force the TypeScript path with <code>?router=ts</code>. Useful if the
+   Rust path regresses on a specific query (please open an issue if so).</p>
 
 <h3>Response</h3>
 <pre><code>{
