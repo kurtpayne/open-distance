@@ -188,13 +188,25 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     const cacheableDests = destTop1.filter((n): n is NodeRef => n !== null);
     const cached = await loadLegCacheBatch(env, srcNode, cacheableDests);
 
-    // Build the set of dest groups that still need routing.
+    // Build the set of dest groups that still need routing. Skip L0 for
+    // destinations whose straight-line distance is already past the L1
+    // dispatch threshold -- they'll be served by the L1 overlay below, and
+    // running L0 first just fills the tile LRU with tiles we'll then have
+    // to evict to make room for L1 (the 110 MB overlay + a hot L0 LRU OOMs
+    // the 128 MB isolate).
+    const oGeoEarly = oR[i].geocode as { lat?: number; lon?: number };
     const needRouting: DestGroup[] = [];
     for (let j = 0; j < destinations.length; j++) {
       const t1 = destTop1[j];
       if (!t1) continue;
       if (cached.has(nodeIdStr(t1))) continue;
       if (destGroups[j].candidates.length === 0) continue;
+      const dGeoEarly = dR[j].geocode as { lat?: number; lon?: number };
+      if (l1Enabled(env)
+          && oGeoEarly.lat !== undefined && dGeoEarly.lat !== undefined) {
+        const straight = haversineMeters(oGeoEarly.lat!, oGeoEarly.lon!, dGeoEarly.lat!, dGeoEarly.lon!);
+        if (straight >= L1_DISPATCH_M) continue;  // dispatch directly to L1 below
+      }
       needRouting.push(destGroups[j]);
     }
 
