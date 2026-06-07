@@ -24,6 +24,33 @@ Live at **https://open-distance.com** (also reachable at
   - `GET /healthz` — liveness + sentinel-tile probe
   - `GET /coverage` — version, sources, supported `match` values, deviations
 
+## How this compares to OSRM, Valhalla, and commercial APIs
+
+`open-distance` is not a routing engine — it's a Google Distance Matrix-shape
+endpoint built on Cloudflare's edge (no server to run). OSRM and Valhalla are
+mature routing engines with much broader feature sets; if you need route
+geometry, turn-by-turn, isochrones, or live traffic, use one of them.
+
+|                       | [OSRM](https://project-osrm.org/) | [Valhalla](https://valhalla.github.io/valhalla/) | open-distance | Google / commercial |
+|-----------------------|------|----------|---------------|---------------------|
+| Deploy model          | Self-host server (VM) | Self-host server (VM) | Cloudflare Worker (edge) | SaaS |
+| Cost (continental US) | ~$50–200/mo VM | ~$50–200/mo VM | ~$5–10/mo Cloudflare | Per-call ($) |
+| Cold start            | Minutes (load graph) | Seconds (tile lazy-load) | ~30 ms isolate | n/a |
+| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good; slower cross-country before L1 overlay | Fast |
+| Route geometry        | Yes | Yes | **No** (scalar distance + duration) | Yes |
+| Turn-by-turn          | Yes | Yes | No | Yes |
+| Live traffic          | No  | Plugin | No | Yes |
+| Geocoder included     | BYO (Nominatim) | BYO | **Yes** (NAD + OpenAddresses + OSM + TIGER) | Yes |
+| API wire format       | OSRM JSON | Valhalla JSON | **Google Distance Matrix JSON** | (varies) |
+| License               | BSD-2 | MIT | Apache 2.0 | Proprietary |
+
+Valhalla's tiled hierarchical architecture is the closest analog to the design
+that runs here. The differences are scope (we only do distance/duration
+matrices) and operations (Worker isolates instead of dedicated servers). The
+"first layer" pattern works equally well with any of these as the fallback:
+hit `open-distance` first, cache the answer, escalate to a premium engine
+only for queries that actually need its premium features.
+
 ## Architecture (v2, tiled)
 
 ```

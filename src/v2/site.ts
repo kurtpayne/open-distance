@@ -31,6 +31,8 @@ const CSS = `
   .pill-interp { background: #fef3c7; color: #92400e; }
   .pill-coords { background: #e0e7ff; color: #3730a3; }
   .pill-fail { background: #fee2e2; color: #991b1b; }
+  table.cmp { font-size: 0.85rem; display: block; overflow-x: auto; }
+  table.cmp th:first-child, table.cmp tbody th { font-weight: 600; background: #f5f5f7; white-space: nowrap; }
   footer { color: #777; font-size: 0.8rem; margin-top: 3rem; border-top: 1px solid #e5e5e9; padding-top: 1rem; }
   @media (prefers-color-scheme: dark) {
     body { background: #0f0f10; color: #eaeaee; }
@@ -311,6 +313,41 @@ export function renderIndex(): string {
       only. Same architecture would work elsewhere with state/country PBFs;
       not a goal for this project.</li>
 </ul>
+
+<h2>How this compares to OSRM, Valhalla, and commercial APIs</h2>
+<p>The open-source routing ecosystem already has excellent engines.
+   <strong>open-distance is not a routing engine</strong> — it's a
+   distance-matrix endpoint built on a different operational model
+   (Cloudflare's edge, serverless, no server to run). If you need full
+   route geometry, turn-by-turn directions, or live traffic, one of the
+   tools below is the right fit.</p>
+<table class="cmp">
+  <thead>
+    <tr><th></th><th>OSRM</th><th>Valhalla</th><th>open-distance</th><th>Google / commercial</th></tr>
+  </thead>
+  <tbody>
+    <tr><th>Deploy model</th><td>Self-host server (VM)</td><td>Self-host server (VM)</td><td>Cloudflare Worker (edge)</td><td>SaaS</td></tr>
+    <tr><th>Cost (US-48)</th><td>~$50–200/mo VM</td><td>~$50–200/mo VM</td><td>~$5–10/mo Cloudflare</td><td>Per-call ($)</td></tr>
+    <tr><th>Cold start</th><td>Minutes (load graph)</td><td>Seconds (tile lazy-load)</td><td>~30 ms isolate</td><td>n/a</td></tr>
+    <tr><th>Raw routing speed</th><td>Best-in-class (CH)</td><td>Good (tiled)</td><td>Good; slower cross-country before L1 overlay</td><td>Fast</td></tr>
+    <tr><th>Route geometry</th><td>Yes</td><td>Yes</td><td>No (scalar distance + duration)</td><td>Yes</td></tr>
+    <tr><th>Turn-by-turn</th><td>Yes</td><td>Yes</td><td>No</td><td>Yes</td></tr>
+    <tr><th>Live traffic</th><td>No</td><td>Plugin</td><td>No</td><td>Yes</td></tr>
+    <tr><th>Geocoder</th><td>BYO (Nominatim)</td><td>BYO</td><td>Built-in (NAD + OA + OSM + TIGER)</td><td>Built-in</td></tr>
+    <tr><th>API shape</th><td>OSRM JSON</td><td>Valhalla JSON</td><td>Google Distance Matrix JSON</td><td>(varies)</td></tr>
+    <tr><th>License</th><td>BSD-2</td><td>MIT</td><td>Apache 2.0</td><td>Proprietary</td></tr>
+  </tbody>
+</table>
+<p>Both <a href="https://project-osrm.org/" target="_blank" rel="noopener noreferrer">OSRM</a>
+   and <a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener noreferrer">Valhalla</a>
+   are mature, well-maintained projects with much broader feature sets than
+   open-distance. Valhalla's tiled hierarchical architecture is, in fact,
+   the closest analog to what runs here. The differences are scope (we do
+   only distance/duration matrices) and operations (Worker isolates instead
+   of dedicated servers).</p>
+<p>The <strong>"first layer"</strong> idea works with any of these as the
+   fallback: hit open-distance first, cache the answer, and only call the
+   premium engine when you actually need its premium features.</p>
 
 <script>${FORM_JS}</script>
 `;
