@@ -18,7 +18,7 @@ named `hhapi` internally for Cloudflare resource compatibility.
 [Contributing](CONTRIBUTING.md)
 
 - Hostname: `https://open-distance.com` (and `https://hhapi.propspress.com`)
-- Auth: `key=` query param (Google-style)
+- Auth: none — public endpoint, rate-limited per IP (KV-backed)
 - Coverage: continental US (lower 48 + DC)
 - Endpoints:
   - `GET /maps/api/distancematrix/json` — the main API (Google-shape)
@@ -82,7 +82,10 @@ extra arrays surfacing geocode confidence:
 
 ## Documented deviations from Google
 
-- `key=` is validated against our own secret, not a Google API key.
+- No `key=` required. The public endpoint is rate-limited per IP (KV-backed,
+  default 25/sec, 500/hour, 10k/day). Self-hosters can change limits via env
+  vars or disable rate limiting entirely. Forks that need a private endpoint
+  can re-introduce key auth in `src/auth.ts`.
 - Numbers come from our routed graph (no live traffic), so they differ from
   Google's results.
 - Response omits `fare`, `duration_in_traffic`, `geocoded_waypoints`,

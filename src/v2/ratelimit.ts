@@ -1,22 +1,26 @@
-// Per-IP rate limiting via the existing CACHE KV namespace. Three tiers
-// (per-second / per-hour / per-day); a request is blocked when any tier is
-// over its limit. Each tier is one KV bucket key per IP per window, with a
-// short TTL so old buckets self-evict.
+// Per-IP rate limiting via the existing CACHE KV namespace.
 //
-// Defaults: 25/sec, 500/hour, 10000/day per IP.
-// Tunable via env vars RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY.
-// Set any to 0 to disable that tier.
+// **Privacy**: the IP itself is never stored. The KV key is a truncated
+// SHA-256 of `RL_SALT + ip + bucket_id`, so:
+//   - the stored key reveals only "someone hit at most N times in window X",
+//     not which IP
+//   - the per-window bucket_id means tomorrow's keys can't be cross-referenced
+//     with today's
+//   - rotating RL_SALT additionally severs all linkability across the rotation
+// Combined with the short TTLs (5s / ~1h / ~1d), the only data retained is
+// "this hash hit N times during this short window" -- no IPs, no addresses.
+//
+// Three tiers (per-second / per-hour / per-day); a request is blocked when
+// any tier is over its limit. Defaults 25/sec, 500/hour, 10000/day per IP.
+// Tunable via env vars RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY (0 disables).
 //
 // Cost notes:
-//   - 1 KV read per tier + 1 KV write per tier on every limited request.
+//   - 1 KV read + 1 KV write per tier on every rate-limited request.
 //   - Workers Paid ($5/mo) includes 10M KV reads + 1M writes/month.
-//   - On the free plan (100k KV reads + 1k writes/day), traffic naturally caps
-//     well below the rate limits anyway -- KV is the bottleneck before the
-//     limits themselves trigger.
+//   - On the free plan (100k KV reads + 1k writes/day), traffic naturally
+//     caps well below the rate limits anyway.
 //   - For very high traffic, switch to Cloudflare's WAF Rate Limiting rules
-//     (config in the dashboard, no per-request KV cost). KV-based is the
-//     fork-and-deploy default because it works on every plan with no extra
-//     dashboard setup.
+//     (config in the dashboard, no per-request KV cost).
 
 export interface RateLimitConfig {
   perSec: number;
@@ -45,10 +49,22 @@ export function readLimitsFromEnv(env: { [k: string]: unknown }): RateLimitConfi
   };
 }
 
+// SHA-256 a salted (ip, bucket) tuple to a short hex string. The IP itself is
+// never stored. 16 hex chars = 64 bits of key entropy, plenty for a small
+// bucket counter; collisions just mean different IPs share a counter (which
+// only over-counts the limit, never under-counts).
+async function ipBucketKey(salt: string, ip: string, tier: string, bucket: number): Promise<string> {
+  const data = new TextEncoder().encode(`${salt}|${tier}|${ip}|${bucket}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return `rl:${tier}:${hex.slice(0, 16)}`;
+}
+
 export async function checkRateLimit(
   kv: KVNamespace,
   ip: string,
   cfg: RateLimitConfig = DEFAULT_LIMITS,
+  salt = "od-default-salt-rotate-me",
 ): Promise<RateLimitResult> {
   const now = Math.floor(Date.now() / 1000);
   const tiers = [
@@ -58,7 +74,7 @@ export async function checkRateLimit(
   ].filter(t => t.limit > 0);
   if (tiers.length === 0) return { ok: true };
 
-  const keys = tiers.map(t => `rl:${t.name}:${ip}:${t.bucket}`);
+  const keys = await Promise.all(tiers.map(t => ipBucketKey(salt, ip, t.name, t.bucket)));
   const counts = await Promise.all(keys.map(k => kv.get(k, "text")));
 
   // Check all tiers, return the first one that's blown.

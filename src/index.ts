@@ -23,8 +23,14 @@ export default {
       // for an unlimited deployment (private fork inside a trusted network,
       // for example).
       const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
-      const limits = readLimitsFromEnv(env as unknown as Record<string, unknown>);
-      const rl = await checkRateLimit(env.CACHE, ip, limits);
+      const envR = env as unknown as Record<string, unknown>;
+      const limits = readLimitsFromEnv(envR);
+      // RL_SALT can be set as a Worker secret for production. Rotating it
+      // severs cross-day linkability of bucket counters. If unset, defaults
+      // to a build-time constant -- still privacy-preserving because the
+      // hash is only stored next to a small counter, with a short TTL.
+      const salt = String(envR.RL_SALT ?? "od-default-salt-rotate-me");
+      const rl = await checkRateLimit(env.CACHE, ip, limits, salt);
       if (!rl.ok) return rateLimitResponse(rl, limits);
       return v2Handle(url, env);
     }

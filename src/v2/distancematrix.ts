@@ -19,8 +19,8 @@ const L1_DISPATCH_M = 320_000;  // ~200 mi
 // L1 dispatch is gated by an env-var feature flag so a half-built / oversized
 // L1 binary in R2 can't OOM the isolate. Set L1_ENABLED=1 once the overlay
 // binary is known to fit under the 128 MB Worker memory limit.
-function l1Enabled(env: { L1_ENABLED?: unknown }): boolean {
-  return String(env.L1_ENABLED ?? "") === "1";
+function l1Enabled(env: Env): boolean {
+  return String((env as Record<string, unknown>).L1_ENABLED ?? "") === "1";
 }
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
