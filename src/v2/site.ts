@@ -548,16 +548,41 @@ export function renderIndex(): string {
 <h2>Honest accuracy</h2>
 <p>We're built on OpenStreetMap road geometry, NAD + OpenAddresses for
    addresses, TIGER for street-range interpolation. Free-flow durations only
-   (no live traffic). For typical metro and inter-city routes:</p>
+   (no live traffic).</p>
+
+<p>Measured against Google Distance Matrix on a 44-route sample spanning
+   short urban, suburban commute, inter-city, long-haul, rural, and
+   cross-state edges (see <a href="https://github.com/kurtpayne/open-distance/blob/main/scripts/benchmark_vs_google.py">scripts/benchmark_vs_google.py</a>
+   for the exact route list):</p>
+<table>
+<thead>
+  <tr><th>Category</th><th>Routes</th><th>Distance Δ (median)</th><th>Distance Δ (p90)</th><th>Time Δ (median)</th><th>Time Δ (p90)</th></tr>
+</thead>
+<tbody>
+  <tr><td>Inter-city</td><td>4</td><td><strong>1.2 %</strong></td><td>1.9 %</td><td><strong>3.0 %</strong></td><td>5.0 %</td></tr>
+  <tr><td>Long-haul</td><td>8</td><td><strong>0.7 %</strong></td><td>9.0 %</td><td><strong>2.0 %</strong></td><td>13.8 %</td></tr>
+  <tr><td>Rural</td><td>5</td><td><strong>0.5 %</strong></td><td>3.6 %</td><td>7.0 %</td><td>24.8 %</td></tr>
+  <tr><td>Commute</td><td>8</td><td>5.1 %</td><td>58.0 %</td><td>29.7 %</td><td>52.9 %</td></tr>
+  <tr><td>Cross-state</td><td>6</td><td>10.4 %</td><td>13.1 %</td><td>29.5 %</td><td>60.6 %</td></tr>
+  <tr><td>Traffic-prone</td><td>6</td><td>11.0 %</td><td>39.7 %</td><td>35.7 %</td><td>63.4 %</td></tr>
+  <tr><td>Short urban</td><td>4</td><td>25.1 %</td><td>41.1 %</td><td>70.9 %</td><td>80.8 %</td></tr>
+</tbody>
+</table>
+
+<p><strong>How to read this</strong>: distance is the road-network shortest
+   path; time is free-flow. The commercial reference includes a traffic
+   model we don't, so the time gap on commute / traffic / cross-state
+   categories is expected and honest. Distance numbers are within ~1 % on
+   inter-city, long, and rural routes; gap on short-urban traffic-modeled
+   routes is largely about which one-way the router prefers.</p>
+<p><strong>What we know is broken right now</strong>: 3 cross-country routes
+   (NYC↔LA, Seattle↔Miami, Boston↔Houston) return <code>ZERO_RESULTS</code>
+   because the highway overlay that handles >~1500 mi paths is in a memory
+   rework. The other 41 of 44 sample routes return real answers.</p>
 <ul>
-  <li><strong>Distance</strong>: typically within a few percent of a
-      commercial reference for the same origin/destination pair</li>
-  <li><strong>Time</strong>: a single-digit percent off in off-peak hours
-      (no live traffic); larger gap in rush-hour scenarios where a
-      traffic-aware API sees congestion and we don't</li>
   <li><strong>Geocode confidence</strong>: rooftop (NAD / OpenAddresses) is
       comparable to a commercial geocoder; interpolated (OSM / TIGER) is
-      typically within ~30–100 m of the actual building</li>
+      typically within ~30–100 m of the actual building.</li>
 </ul>
 
 <h2>What this is, and what it isn't</h2>
