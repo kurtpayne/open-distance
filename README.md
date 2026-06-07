@@ -125,8 +125,9 @@ extra arrays surfacing geocode confidence:
   `warnings`. The `copyrights` field IS populated (with the ODbL §4.3
   Produced Work notice + a pointer to `/attribution`) so that attribution
   travels with every response.
-- Response adds `origin_matches` / `destination_matches` (additive — old
-  Google clients ignore unknown fields).
+- Response adds `origin_matches` / `destination_matches`, `copyrights`,
+  and `data_version` (`"YYYY-MM"` of the upstream data build, refreshed
+  quarterly). All additive — old Google clients ignore unknown fields.
 - `place_id:` inputs return `NOT_FOUND`.
 - Only supports `mode=driving` (any other mode is treated as driving).
 - Max 100 elements (origins × destinations) per request.

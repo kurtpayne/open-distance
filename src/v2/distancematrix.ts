@@ -281,6 +281,10 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     origin_matches: originMatches,
     rows,
     status: "OK",
+    // YYYY-MM of the upstream data build that the underlying tiles +
+    // address shards came from. Refreshed quarterly. See /coverage for
+    // the per-source license URLs and the per-source OA manifest.
+    data_version: env.DATA_VERSION,
     // ODbL §4.3 Produced Work notice. Travels with every response so that
     // downstream callers who just render the JSON also surface the
     // attribution required by OpenStreetMap. See /attribution for the
