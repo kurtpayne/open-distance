@@ -303,3 +303,4 @@ The /coverage endpoint includes license URLs per source.
 
     return new Response("Not Found", { status: 404 });
 }
+
