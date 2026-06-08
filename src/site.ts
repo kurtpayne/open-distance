@@ -69,9 +69,13 @@ function headMeta(title: string, path: string): string {
 <meta property="og:description" content="${SITE_DESCRIPTION}">
 <meta property="og:url" content="${canonical}">
 <meta property="og:site_name" content="open-distance">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://open-distance.com/og-banner.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${SITE_DESCRIPTION}">
+<meta name="twitter:image" content="https://open-distance.com/og-banner.png">
 <script type="application/ld+json">${jsonLd()}</script>
 <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/jetbrains-mono.woff2" as="font" type="font/woff2" crossorigin>`;
