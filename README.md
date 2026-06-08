@@ -74,7 +74,8 @@ only for queries that actually need its premium features.
                     Two routers: Rust → WASM (rust-router/, ~56 KB) for
                     short-bbox lat/lng queries where its sub-ms inner loop
                     dominates; TypeScript weighted A* for everything else.
-                    Per-query dispatch; ?router=wasm or ?router=ts overrides.
+                    Per-query auto-dispatch; the x-od-router-impl response
+                    header reports which engine answered.
 ```
 
 ## Endpoint contract
@@ -85,8 +86,6 @@ GET /maps/api/distancematrix/json
     &destinations=<C>|<D>|...
     &units=imperial|metric          # default imperial
     &mode=driving                   # only driving supported
-    &router=wasm|ts                 # optional; override the auto-dispatch
-                                    # (default: per-query, see /docs)
 ```
 
 Response is byte-compatible with the legacy Distance Matrix JSON wire
