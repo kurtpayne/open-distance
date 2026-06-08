@@ -984,6 +984,7 @@ const HOME_FOOTER = `
     <div class="foot-bottom">
       <span class="mono">© 2026 open-distance · Apache-2.0</span>
       <span class="mono">under $10/mo to run · $0 to use</span>
+      <a href="https://yoke.lol/open-distance.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center"><img src="https://yoke.lol/badge/open-distance.com.svg" alt="Yoke score for open-distance.com" style="height:20px;vertical-align:middle"></a>
     </div>
   </div>
 </footer>
@@ -994,10 +995,11 @@ const SHORT_FOOTER = `
   <div class="wrap foot-in">
     <a class="brand" href="/"><span class="mk"></span>open-distance</a>
     <span class="mono">A free distance-matrix API · under $10/mo to run · $0 to use</span>
-    <span style="display:flex;gap:18px">
+    <span style="display:flex;gap:18px;align-items:center">
       <a href="https://github.com/kurtpayne/open-distance" target="_blank" rel="noopener">GitHub ↗</a>
       <a href="https://github.com/kurtpayne/open-distance/blob/main/LICENSE" target="_blank" rel="noopener">Apache-2.0</a>
       <a href="/">Home</a>
+      <a href="https://yoke.lol/open-distance.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center"><img src="https://yoke.lol/badge/open-distance.com.svg" alt="Yoke score for open-distance.com" style="height:20px"></a>
     </span>
   </div>
 </footer>
@@ -1400,7 +1402,7 @@ ${topBarOther("/privacy")}
     <h2>What we don’t do</h2>
     <ul>
       <li>No cookies. No localStorage. No tracking pixels. No analytics SDKs.</li>
-      <li>No third-party scripts, fonts, or images. Every byte of every page comes from open-distance.com (or its CDN). No external CDN dependency, no third-party tracking pixels.</li>
+      <li>No third-party scripts, fonts, or trackers. The only external resource is the <a href="https://yoke.lol/open-distance.com" target="_blank" rel="noopener">Yoke</a> reputation badge in the footer — it loads an SVG from <code>yoke.lol</code> on each page view, which means Yoke sees your IP. Block <code>yoke.lol</code> in your browser if you prefer; the page still works.</li>
       <li>No JavaScript that touches geolocation, camera, microphone, or any other permission.</li>
       <li>No accounts, no API keys to register, no contact required to use.</li>
     </ul>
@@ -1584,7 +1586,7 @@ export function htmlHeaders(): Record<string, string> {
       "script-src 'self' 'unsafe-inline'; " +
       "style-src 'self' 'unsafe-inline'; " +
       "font-src 'self'; " +
-      "img-src 'self' data:; " +
+      "img-src 'self' data: https://yoke.lol; " +
       "connect-src 'self'; " +
       "frame-ancestors 'none'; " +
       "base-uri 'none'; " +
