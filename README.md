@@ -43,7 +43,7 @@ turn-by-turn, isochrones, or live traffic, use one of them.
 | Deploy model          | Self-host server (VM) | Self-host server (VM) | Cloudflare Worker (edge) | SaaS |
 | Cost (continental US) | Self-host hardware | Self-host hardware | **<$10/mo Cloudflare** (storage + low traffic) | Per-call ($) |
 | Cold start            | Minutes (load graph) | Seconds (tile lazy-load) | ~30 ms isolate | n/a |
-| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good (sub-ms Rust inner loop; L1 highway overlay for long-haul) | Fast |
+| Raw routing speed     | Best-in-class (CH) | Good (tiled) | Good (tiered: sub-ms Rust for small bbox, TS A* for medium, L1 highway overlay for long-haul) | Fast |
 | Route geometry        | Yes | Yes | **No** (scalar distance + duration) | Yes |
 | Turn-by-turn          | Yes | Yes | No | Yes |
 | Live traffic          | No  | Plugin | No | Yes |
