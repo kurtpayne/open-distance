@@ -1402,7 +1402,7 @@ ${topBarOther("/privacy")}
     <h2>What we don’t do</h2>
     <ul>
       <li>No cookies. No localStorage. No tracking pixels. No analytics SDKs.</li>
-      <li>No third-party scripts, fonts, or trackers. The only external resource is the <a href="https://yoke.lol/open-distance.com" target="_blank" rel="noopener">Yoke</a> reputation badge in the footer — it loads an SVG from <code>yoke.lol</code> on each page view, which means Yoke sees your IP. Block <code>yoke.lol</code> in your browser if you prefer; the page still works.</li>
+      <li>No third-party scripts, fonts, or trackers. The only external resource is the <a href="https://yoke.lol/open-distance.com" target="_blank" rel="noopener">Yoke</a> reputation badge in the footer (same maintainer as this project). Yoke logs nothing beyond Cloudflare's standard privacy-aware metrics and treats IPs as GDPR-protected data; the badge SVG itself is unauthenticated. Full details on Yoke's privacy page if you want them. Block <code>yoke.lol</code> in your browser if you'd rather; the page still works.</li>
       <li>No JavaScript that touches geolocation, camera, microphone, or any other permission.</li>
       <li>No accounts, no API keys to register, no contact required to use.</li>
     </ul>
