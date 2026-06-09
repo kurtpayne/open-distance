@@ -120,7 +120,7 @@ format, plus two extra arrays surfacing geocode confidence:
 ## Documented deviations from the legacy API
 
 - No `key=` required. The public endpoint is rate-limited per IP
-  (DurableObject-backed, default 25/sec, 500/hour, 10k/day). Self-hosters can
+  (DurableObject-backed, default 5/sec, 100/hour, 1000/day). Self-hosters can
   change limits via env vars or disable rate limiting entirely.
 - Numbers come from our routed graph (no live traffic), so they differ from
   any traffic-aware provider.
@@ -214,30 +214,6 @@ scripts/materialize_wrangler.sh   # substitutes IDs into wrangler.toml from the 
 The first `./refresh.sh all` is long — several hours of downloads (~50 GB
 of source data) plus several hours of build CPU.
 You can also restrict to a single state for development: `./refresh.sh all CA`.
-
-## Costs
-
-**Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
-**< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
-(~1 M/day) sit inside Cloudflare's included tiers, and R2/KV storage is a few
-dollars. The real cost is **D1 row _writes_** during a data load:
-
-| Action | Approx. cost | Why |
-|---|---|---|
-| **Full continental-US load** (`refresh.sh all`) | **~$500–$1,000+ (one-time)** | ~222 M addresses + ~34 M segments, but D1 bills ~1.38 B **rows written** — the `addr_fts` FTS5 index (built per-row via the AFTER-INSERT trigger) is ~80% of it. D1 writes are **$1 / million** (50 M/mo free). |
-| Reload one large state (e.g. TX) | ~$30–$150 | Same FTS5 write amplification, proportional to that state's address count. |
-| Serving | **< $10 / month** | Reads are within free tiers; the only ongoing writes are the rate limiter (~3 KV writes/req) + leg cache (≤100 KV writes/req, cold). KV writes bill at $5/M (1k/day free). |
-
-**Implications:**
-- A _full_ refresh is a several-hundred-dollar event. **Do not refresh on a
-  blind monthly cron.** Upstream sources (NAD quarterly, OA/OSM irregular)
-  rarely all change at once — refresh only the states whose source data actually
-  changed (see below), turning a ~$1,000 reload into a small partial one.
-- Set a **Cloudflare billing alert** — it's the only hard backstop against a
-  surprise overage from a reload or a traffic spike.
-- Per-IP rate limits (`src/ratelimit.ts`, default 5/sec · 100/hour · 1000/day,
-  env-tunable) bound per-client KV/D1 usage; they do not cap _global_ spend, so
-  pair them with the billing alert.
 
 ### Pre-filtering refreshes to avoid writes
 
