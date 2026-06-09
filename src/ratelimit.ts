@@ -1,14 +1,16 @@
-// Per-IP rate limiting via the existing CACHE KV namespace.
+// Per-IP rate limiting. Shared types + pure decision logic live here; the
+// actual counters live in the RateLimiter DurableObject (src/ratelimiter_do.ts)
+// -- one DO instance per client IP. DO bumps cost ~$0.15/M requests vs KV
+// writes at $5/M, so the same 3-tier check is ~100x cheaper.
 //
-// **Privacy**: the IP itself is never stored. The KV key is a truncated
-// SHA-256 of `RL_SALT + ip + bucket_id`, so:
-//   - the stored key reveals only "someone hit at most N times in window X",
-//     not which IP
-//   - the per-window bucket_id means tomorrow's keys can't be cross-referenced
-//     with today's
-//   - rotating RL_SALT additionally severs all linkability across the rotation
-// Combined with the short TTLs, the only data retained is "this hash hit N
-// times during this short window" -- no IPs, no addresses.
+// **Privacy**: the IP itself is never stored. The DO is addressed by a salted
+// SHA-256 of the IP (see hashIp), so:
+//   - the DO name reveals only "some client hit N times in window X", not which
+//     IP
+//   - rotating RL_SALT severs all linkability across the rotation
+// Counters are held in DO memory keyed by the current window bucket; nothing
+// durable is written per request, and a DO eviction just resets a counter
+// (fails open) -- acceptable for abuse mitigation.
 //
 // Three tiers (per-second / per-hour / per-day); a request is blocked when
 // any tier is over its limit. Defaults 25/sec, 500/hour, 10000/day per IP.
@@ -64,45 +66,57 @@ export function readLimitsFromEnv(env: { [k: string]: unknown }): RateLimitConfi
   };
 }
 
-// SHA-256 a salted (ip, bucket) tuple to a short hex string. The IP itself is
-// never stored. 16 hex chars = 64 bits of key entropy, plenty for a small
-// bucket counter; collisions just mean different IPs share a counter (which
-// only over-counts the limit, never under-counts).
-async function ipBucketKey(salt: string, ip: string, tier: string, bucket: number): Promise<string> {
-  const data = new TextEncoder().encode(`${salt}|${tier}|${ip}|${bucket}`);
+// Salted SHA-256 of an IP -> short hex id, with NO per-tier/per-bucket
+// component. Used by the DurableObject path as the DO instance name so each
+// IP's counters live in their own DO. Like ipBucketKey, the raw IP is never
+// stored; collisions only over-count (share a DO), never under-count.
+export async function hashIp(salt: string, ip: string): Promise<string> {
+  const data = new TextEncoder().encode(`${salt}|do|${ip}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
-  const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
-  return `rl:${tier}:${hex.slice(0, 16)}`;
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
 
-function tierResetIn(name: TierName, now: number): number {
+export function tierResetIn(name: TierName, now: number): number {
   if (name === "sec") return 1;
   if (name === "hour") return 3600 - (now % 3600);
   return 86400 - (now % 86400);
 }
 
-export async function checkRateLimit(
-  kv: KVNamespace,
-  ip: string,
-  cfg: RateLimitConfig = DEFAULT_LIMITS,
-  salt = "od-default-salt-rotate-me",
-): Promise<RateLimitResult> {
-  const now = Math.floor(Date.now() / 1000);
-  // KV expirationTtl minimum is 60 seconds. The per-sec bucket key already
-  // rotates every second via `bucket: now`, so a longer TTL only leaves stale
-  // counter rows in KV for an extra ~minute -- they don't affect counting.
-  const tiers = [
-    { name: "sec"  as TierName, bucket: now,                     limit: cfg.perSec,  ttl: 60    },
-    { name: "hour" as TierName, bucket: Math.floor(now / 3600),  limit: cfg.perHour, ttl: 3700  },
-    { name: "day"  as TierName, bucket: Math.floor(now / 86400), limit: cfg.perDay,  ttl: 90000 },
+// A single tier's configuration for the current instant: which window bucket it
+// falls in and its limit. `bucket` rolls when the window advances (sec=now,
+// hour=floor(now/3600), day=floor(now/86400)) -- when it changes, that tier's
+// counter resets.
+export interface TierSpec {
+  name: TierName;
+  bucket: number;
+  limit: number;
+}
+
+// Compute the active tiers (those with limit > 0) for a given instant. Shared
+// by every rate-limit backend so the windowing/bucket math lives in exactly
+// one place.
+export function computeTiers(cfg: RateLimitConfig, now: number): TierSpec[] {
+  return [
+    { name: "sec"  as TierName, bucket: now,                    limit: cfg.perSec  },
+    { name: "hour" as TierName, bucket: Math.floor(now / 3600), limit: cfg.perHour },
+    { name: "day"  as TierName, bucket: Math.floor(now / 86400), limit: cfg.perDay },
   ].filter(t => t.limit > 0);
-  if (tiers.length === 0) return { ok: true, tiers: [] };
+}
 
-  const keys = await Promise.all(tiers.map(t => ipBucketKey(salt, ip, t.name, t.bucket)));
-  const counts = await Promise.all(keys.map(k => kv.get(k, "text")));
-  const used = counts.map(c => parseInt(c || "0", 10));
+// Pure rate-limit decision given the tiers and the counts already used in each
+// tier's current window (BEFORE this request). Returns the RateLimitResult and,
+// when allowed, the post-increment counts the caller should persist. No I/O --
+// both the KV path and the DurableObject call this so the contract is identical.
+export function evaluateTiers(
+  tiers: TierSpec[],
+  used: number[],
+  now: number,
+): { result: RateLimitResult; newCounts: number[] } {
+  if (tiers.length === 0) {
+    return { result: { ok: true, tiers: [] }, newCounts: [] };
+  }
 
-  // Check all tiers, return the first one that's blown.
+  // Check all tiers; the first one already at/over its limit blocks the request.
   for (let i = 0; i < tiers.length; i++) {
     if (used[i] >= tiers[i].limit) {
       const states: TierState[] = tiers.map((t, j) => ({
@@ -113,31 +127,30 @@ export async function checkRateLimit(
         resetIn: tierResetIn(t.name, now),
       }));
       return {
-        ok: false,
-        tiers: states,
-        retryAfter: tierResetIn(tiers[i].name, now),
-        limitName: tiers[i].name,
-        currentCount: used[i],
+        result: {
+          ok: false,
+          tiers: states,
+          retryAfter: tierResetIn(tiers[i].name, now),
+          limitName: tiers[i].name,
+          currentCount: used[i],
+        },
+        newCounts: used.slice(),
       };
     }
   }
 
-  // Increment all tiers. KV is eventually consistent across colos -- a burst
-  // hitting multiple CF colos at once may slightly exceed the per-second
-  // limit, but the per-hour and per-day buckets are accurate enough for
-  // abuse mitigation.
-  await Promise.all(tiers.map((t, i) => kv.put(keys[i], String(used[i] + 1), { expirationTtl: t.ttl })));
-
-  // After incrementing, `remaining` is computed against the new used count.
+  // Allowed: count this request against every tier.
+  const newCounts = used.map(u => u + 1);
   const states: TierState[] = tiers.map((t, j) => ({
     name: t.name,
     limit: t.limit,
-    used: used[j] + 1,
-    remaining: Math.max(0, t.limit - (used[j] + 1)),
+    used: newCounts[j],
+    remaining: Math.max(0, t.limit - newCounts[j]),
     resetIn: tierResetIn(t.name, now),
   }));
-  return { ok: true, tiers: states };
+  return { result: { ok: true, tiers: states }, newCounts };
 }
+
 
 // Build the X-RateLimit-* and IETF RateLimit-* headers for any response.
 export function rateLimitHeaders(tiers: TierState[]): Record<string, string> {

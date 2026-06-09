@@ -5,12 +5,20 @@ import {
   handleCoverage,
 } from "./distancematrix";
 import { renderIndex, renderDocs, renderPrivacy, renderAttribution, htmlHeaders } from "./site";
-import { checkRateLimit, rateLimitHeaders, rateLimitResponse, readLimitsFromEnv } from "./ratelimit";
+import {
+  rateLimitHeaders,
+  rateLimitResponse,
+  readLimitsFromEnv,
+  hashIp,
+  RateLimitResult,
+} from "./ratelimit";
 
 export { L1Router } from "./l1_router";
+export { RateLimiter } from "./ratelimiter_do";
 
 type Env = BaseEnv & {
   L1_ROUTER: DurableObjectNamespace;
+  RATE_LIMITER: DurableObjectNamespace;
 };
 
 // CORS: this is a free public API, so any origin can read it. Adding the
@@ -129,27 +137,45 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     }
     if (url.pathname === "/coverage") return handleCoverage(env, req);
     if (url.pathname === "/maps/api/distancematrix/json") {
-      // KV-backed per-IP rate limiter. Default 25/sec, 500/hour, 10k/day per
-      // IP. Self-hosters can tune via RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY
-      // env vars, or set any to 0 to disable that tier. Set all three to 0
-      // for an unlimited deployment (private fork inside a trusted network,
-      // for example).
+      // DurableObject-backed per-IP rate limiter. Default 25/sec, 500/hour,
+      // 10k/day per IP. Self-hosters can tune via RL_PER_SEC / RL_PER_HOUR /
+      // RL_PER_DAY env vars, or set any to 0 to disable that tier. Set all
+      // three to 0 for an unlimited deployment (private fork inside a trusted
+      // network, for example). One DO instance per IP holds the counters in
+      // memory -- ~100x cheaper than the old KV path's 3 writes/request.
       const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
       const envR = env as unknown as Record<string, unknown>;
       const limits = readLimitsFromEnv(envR);
       // RL_SALT can be set as a Worker secret for production. Rotating it
-      // severs cross-day linkability of bucket counters. If unset, defaults
-      // to a build-time constant -- still privacy-preserving because the
-      // hash is only stored next to a small counter, with a short TTL.
+      // severs linkability of the per-IP DO names. If unset, defaults to a
+      // build-time constant -- still privacy-preserving because the raw IP is
+      // never stored, only its salted hash (used as the DO instance name).
       const salt = String(envR.RL_SALT ?? "od-default-salt-rotate-me");
-      const rl = await checkRateLimit(env.CACHE, ip, limits, salt);
-      if (!rl.ok) return rateLimitResponse(rl, limits);
+      // Fail OPEN: a limiter error must never take the API down. Any throw
+      // (DO unavailable, bad response) leaves `rl` null and we skip the gate.
+      let rl: RateLimitResult | null = null;
+      try {
+        const id = env.RATE_LIMITER.idFromName(await hashIp(salt, ip));
+        const stub = env.RATE_LIMITER.get(id);
+        const resp = await stub.fetch("https://rl/check", {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        rl = (await resp.json()) as RateLimitResult;
+      } catch {
+        rl = null;
+      }
+      if (rl && !rl.ok) return rateLimitResponse(rl, limits);
       const resp = await handleDistanceMatrix(url, env);
       // Mirror the rate-limit state back to the caller on every successful
-      // response so they can self-throttle without a probe round-trip.
+      // response so they can self-throttle without a probe round-trip. When the
+      // limiter failed open (rl === null) there are no counters to report, so
+      // the X-RateLimit-* headers are simply omitted for that request.
       const headers = new Headers(resp.headers);
-      for (const [k, v] of Object.entries(rateLimitHeaders(rl.tiers))) {
-        headers.set(k, v);
+      if (rl) {
+        for (const [k, v] of Object.entries(rateLimitHeaders(rl.tiers))) {
+          headers.set(k, v);
+        }
       }
       return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
     }
@@ -263,7 +289,7 @@ coords       = caller supplied "lat,lng" directly
 
 ## Rate limits
 
-Per-IP, KV-backed. There is no paid tier.
+Per-IP, DurableObject-backed. There is no paid tier.
 
 - 25 requests per second
 - 500 requests per hour

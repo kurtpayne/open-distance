@@ -17,7 +17,7 @@ Live at **https://open-distance.com**.
 [Contributing](CONTRIBUTING.md)
 
 - Hostname: `https://open-distance.com`
-- Auth: none — public endpoint, rate-limited per IP (KV-backed)
+- Auth: none — public endpoint, rate-limited per IP (DurableObject-backed)
 - Coverage: continental US (lower 48 + DC)
 - Endpoints:
   - `GET /maps/api/distancematrix/json` — the main API (legacy Distance Matrix JSON shape)
@@ -119,9 +119,9 @@ format, plus two extra arrays surfacing geocode confidence:
 
 ## Documented deviations from the legacy API
 
-- No `key=` required. The public endpoint is rate-limited per IP (KV-backed,
-  default 25/sec, 500/hour, 10k/day). Self-hosters can change limits via env
-  vars or disable rate limiting entirely.
+- No `key=` required. The public endpoint is rate-limited per IP
+  (DurableObject-backed, default 25/sec, 500/hour, 10k/day). Self-hosters can
+  change limits via env vars or disable rate limiting entirely.
 - Numbers come from our routed graph (no live traffic), so they differ from
   any traffic-aware provider.
 - Response omits `fare`, `duration_in_traffic`, `geocoded_waypoints`,
@@ -313,7 +313,8 @@ src/
   geocode.ts             per-state D1 sharded geocoder + TIGER fallback
   interpolate.ts         TIGER segment lookup + linear interpolation
   normalize.ts           address normalizer
-  ratelimit.ts           KV-backed per-IP rate limiter (GDPR-clean: hashed IP)
+  ratelimit.ts           per-IP rate-limit types + pure logic (GDPR-clean: hashed IP)
+  ratelimiter_do.ts      RateLimiter DurableObject (in-memory counters; ~100x cheaper than KV)
   router.ts              tiled lazy-fetch one-to-many Dijkstra (TS fallback)
   site.ts                landing / docs / privacy / attribution HTML
   state_parser.ts        parse state code from query
