@@ -7,6 +7,7 @@ import { oneToMany, NodeRef, DestGroup } from "./router";
 import { formatDistance, formatDuration, Units } from "./format";
 import { haversineMeters } from "./geo";
 import { STATE_CODES } from "./state_parser";
+import { readMaxElements, readContactEmail, contactCta } from "./config";
 
 // Number of snap candidates to keep per endpoint. Lets the router fall back to
 // the next-nearest node when the first one is on an isolated graph fragment
@@ -281,10 +282,12 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
       rows: [], origin_addresses: [], destination_addresses: [],
     });
   }
-  if (origins.length * destinations.length > 25) {
+  const maxElements = readMaxElements(env);
+  if (origins.length * destinations.length > maxElements) {
+    const cta = contactCta(readContactEmail(env));
     return jsonResponse({
       status: "MAX_ELEMENTS_EXCEEDED",
-      error_message: "Max 25 elements (origins × destinations) per request. Contact hello@open-distance.com for custom solutions.",
+      error_message: `Max ${maxElements} elements (origins × destinations) per request.${cta}`,
       rows: [], origin_addresses: [], destination_addresses: [],
     });
   }

@@ -12,7 +12,8 @@ import {
   hashIp,
   RateLimitResult,
 } from "./ratelimit";
-import { GlobalLimitResult } from "./global_limiter_do";
+import { GlobalLimitResult, readGlobalLimitFromEnv } from "./global_limiter_do";
+import { readContactEmail, contactCta, resolveSiteConfig } from "./config";
 
 export { L1Router } from "./l1_router";
 export { RateLimiter } from "./ratelimiter_do";
@@ -43,13 +44,16 @@ function withCors(resp: Response): Response {
 // 503 returned when the account-wide global daily cap is hit. Mirrors the
 // Distance Matrix shape of rateLimitResponse (empty rows/addresses) so existing
 // clients parse it, but uses HTTP 503 + Retry-After (seconds to UTC midnight).
-function globalLimitResponse(gl: GlobalLimitResult): Response {
+// `cta` is the contact call-to-action sentence (built via contactCta in
+// src/config.ts) appended to the message. Pass "" to omit it -- the caller reads
+// CONTACT_EMAIL from env so the contact address is config, not code.
+function globalLimitResponse(gl: GlobalLimitResult, cta = ""): Response {
   const body = {
     status: "OVER_QUERY_LIMIT",
     error_message:
       `Service is at its daily request cap (${gl.limit}/day). ` +
-      `It resets at 00:00 UTC. ` +
-      `Need higher or dedicated limits? Contact hello@open-distance.com for custom solutions.`,
+      `It resets at 00:00 UTC.` +
+      (cta ? ` Need higher or dedicated limits?${cta}` : ""),
     rows: [],
     origin_addresses: [],
     destination_addresses: [],
@@ -173,6 +177,9 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
       const envR = env as unknown as Record<string, unknown>;
       const limits = readLimitsFromEnv(envR);
+      // Contact CTA appended to rejection messages. Sourced from CONTACT_EMAIL
+      // (default hello@open-distance.com); "" suppresses the CTA for a forker.
+      const cta = contactCta(readContactEmail(envR));
       // RL_SALT can be set as a Worker secret for production. Rotating it
       // severs linkability of the per-IP DO names. If unset, defaults to a
       // build-time constant -- still privacy-preserving because the raw IP is
@@ -192,7 +199,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       } catch {
         rl = null;
       }
-      if (rl && !rl.ok) return rateLimitResponse(rl, limits);
+      if (rl && !rl.ok) return rateLimitResponse(rl, limits, cta);
 
       // Account-wide hard daily cap. Checked AFTER the per-IP gate passes so a
       // single abuser is bounced with 429 and never burns the global budget --
@@ -213,7 +220,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       } catch {
         gl = null;
       }
-      if (gl && !gl.ok) return globalLimitResponse(gl);
+      if (gl && !gl.ok) return globalLimitResponse(gl, cta);
 
       const resp = await handleDistanceMatrix(url, env);
       // Mirror the rate-limit state back to the caller on every successful
@@ -234,11 +241,20 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     // etc. to return the same status as GET. Workers strips the body for HEAD
     // automatically, so we can return the GET-shaped Response unchanged.
     if (req.method === "GET" || req.method === "HEAD") {
+      // Resolve every operator-tunable knob from env once so the rendered site
+      // reflects this deployment's own limits + contact address (not the
+      // maintainer's defaults). A forker changes config, not code.
+      const siteEnv = env as unknown as Record<string, unknown>;
+      const siteCfg = resolveSiteConfig(
+        siteEnv,
+        readLimitsFromEnv(siteEnv),
+        readGlobalLimitFromEnv(siteEnv),
+      );
       if (url.pathname === "/" || url.pathname === "/try") {
-        return new Response(renderIndex(), { headers: htmlHeaders() });
+        return new Response(renderIndex(siteCfg), { headers: htmlHeaders() });
       }
       if (url.pathname === "/docs") {
-        return new Response(renderDocs(), { headers: htmlHeaders() });
+        return new Response(renderDocs(siteCfg), { headers: htmlHeaders() });
       }
       if (url.pathname === "/privacy") {
         return new Response(renderPrivacy(), { headers: htmlHeaders() });
@@ -340,14 +356,18 @@ coords       = caller supplied "lat,lng" directly
 
 Per-IP, DurableObject-backed. There is no paid tier.
 
-- 5 requests per second
-- 100 requests per hour
-- 1,000 requests per day
+- ${siteCfg.perSec.toLocaleString("en-US")} requests per second
+- ${siteCfg.perHour.toLocaleString("en-US")} requests per hour
+- ${siteCfg.perDay.toLocaleString("en-US")} requests per day
 
-On top of the per-IP tiers, an account-wide cap of 25,000 requests/day
+${siteCfg.globalDaily > 0
+  ? `On top of the per-IP tiers, an account-wide cap of ${siteCfg.globalDaily.toLocaleString("en-US")} requests/day
 (resets at 00:00 UTC) bounds total serving cost. When it's hit the API
-returns HTTP 503 + Retry-After (not 429). Need higher or dedicated limits?
-Email hello@open-distance.com for custom solutions.
+returns HTTP 503 + Retry-After (not 429).`
+  : `There is no account-wide daily cap on this deployment.`}${siteCfg.contactEmail
+  ? ` Need higher or dedicated limits?
+Email ${siteCfg.contactEmail} for custom solutions.`
+  : ""}
 
 Every response carries headers: X-RateLimit-Limit-Second / -Hour / -Day,
 X-RateLimit-Remaining-Second / -Hour / -Day, X-RateLimit-Reset-Second /
