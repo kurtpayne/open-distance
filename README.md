@@ -227,11 +227,39 @@ Individual stages (resumable, idempotent):
 | `tiles`     | Build per-tile CSR road-graph binaries from OSM |
 | `addresses` | NAD → `.nad.csv`, OA → `.oa.csv`, OSM → `.osm.csv`, merge → `.csv`, plus TIGER segments → `segments/<STATE>.csv` |
 | `upload-r2` | Push tile binaries to R2 (parallel xargs; failures auto-retried) |
-| `load-d1`   | Push merged address CSVs + TIGER segments to D1 shards (parallel HTTP, with 971/7429 backoff) |
+| `load-d1`   | Push merged address CSVs + TIGER segments to D1 shards (parallel HTTP, with 971/7429 backoff). Skips any state whose CSVs are unchanged since the last successful load (see below) |
 | `publish`   | Write manifest JSON to KV under `manifest:active` |
 
 Per-stage state can be restricted: `./refresh.sh tiles CA NY TX` or
 `./refresh.sh load-d1 IL OH`.
+
+### `load-d1` per-state source-hash skip
+
+D1 bills per row **written** ($1/M) and the address shard's per-row FTS5
+trigger amplifies each address insert ~5×, so a full reload of all 49 shards
+costs roughly **$1,000**. Most refreshes only change a handful of states, so
+`load-d1` skips the expensive `DROP`+reload for any state whose source CSV is
+byte-identical to its last successful load:
+
+- Before loading a state, each loader computes a SHA-256 of the exact artifact
+  it would load — the merged addresses CSV (`load_d1_parallel`) or the TIGER
+  segments CSV (`load_d1_segments`).
+- It compares against a manifest at `data/v2/out/<version>/load_hashes.json`
+  (`{ "<STATE>": { "addresses_sha256": "...", "segments_sha256": "..." } }`).
+- **Unchanged** (hash recorded *and* matching) → `SKIP <STATE> (unchanged)`,
+  no writes.
+- **Changed / new / no prior record** → `LOAD <STATE> (changed|new)` and the
+  shard is reloaded. A missing manifest entry always loads.
+- The new hash is recorded **only after a fully clean load** (no failed
+  batches), written incrementally so a mid-run failure preserves the states
+  that already completed.
+
+Pass `--force` to reload every state regardless of the manifest:
+
+```bash
+./refresh.sh load-d1 --force          # reload all states
+./refresh.sh load-d1 --force IL OH    # force-reload specific states
+```
 
 ## Address + street data sources
 

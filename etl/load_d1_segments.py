@@ -29,6 +29,7 @@ from pathlib import Path
 import aiohttp
 
 from etl.config import DATA
+from etl.load_hashes import LoadHashManifest, file_sha256
 from etl.states import BY_CODE
 
 
@@ -106,7 +107,18 @@ async def load_state(
     state: str,
     db_id: str,
     csv_path: Path,
-) -> int:
+    manifest: LoadHashManifest,
+    force: bool,
+) -> tuple[str, int]:
+    # Per-state source-hash skip: skip DROP+reload when the segments CSV is
+    # unchanged vs the last successful load. --force bypasses it.
+    src_hash = file_sha256(csv_path)
+    if not force and manifest.matches(state, "segments_sha256", src_hash):
+        log(f"SKIP {state} (unchanged)")
+        return ("skip", 0)
+    reason = "forced" if force else ("changed" if manifest.recorded(state, "segments_sha256") else "new")
+    log(f"LOAD {state} ({reason})")
+
     log(f"{state}: reset segments table")
     await d1_query(session, account_id, db_id, SCHEMA_SQL)
 
@@ -155,7 +167,10 @@ async def load_state(
     await asyncio.gather(*(run_one(b) for b in batches))
     elapsed = time.time() - start
     log(f"{state}: done in {elapsed:.1f}s ({total:,} segments, {failed} batch fails)")
-    return total
+    # Only record the hash on a fully clean load so a partial reload retries.
+    if failed == 0:
+        manifest.record(state, "segments_sha256", src_hash)
+    return ("load", total)
 
 
 async def main(argv: list[str]) -> int:
@@ -166,6 +181,12 @@ async def main(argv: list[str]) -> int:
         default=None,
         help="Path to a toml file with [[d1_databases]] entries. "
              "Defaults to wrangler.toml at the repo root.",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Reload every state even if its segments CSV is unchanged "
+             "(bypasses the per-state source-hash skip).",
     )
     ap.add_argument("states", nargs="*")
     args = ap.parse_args(argv)
@@ -188,6 +209,8 @@ async def main(argv: list[str]) -> int:
             log(f"WARN: no segments CSV for {s}, skip"); continue
         queue.append((s, db_id, csvp))
 
+    manifest = LoadHashManifest(args.version)
+
     conn = aiohttp.TCPConnector(limit=CONCURRENCY * STATE_PARALLELISM + 8)
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     timeout = aiohttp.ClientTimeout(total=120, connect=15)
@@ -195,10 +218,21 @@ async def main(argv: list[str]) -> int:
         sem_states = asyncio.Semaphore(STATE_PARALLELISM)
         async def gated(s, db_id, csv_p):
             async with sem_states:
-                return await load_state(session, account_id, s, db_id, csv_p)
+                return await load_state(session, account_id, s, db_id, csv_p, manifest, args.force)
         results = await asyncio.gather(*(gated(*x) for x in queue), return_exceptions=True)
-        total = sum(r for r in results if isinstance(r, int))
-        log(f"all done: {total:,} segments across {len(queue)} states")
+        total = 0
+        loaded = 0
+        skipped = 0
+        for r in results:
+            if isinstance(r, tuple):
+                kind, rows = r
+                if kind == "skip":
+                    skipped += 1
+                else:
+                    loaded += 1
+                    total += rows
+        log(f"all done: loaded {loaded} states, skipped {skipped}, ~{total:,} segments written "
+            f"(manifest: {manifest.path})")
     return 0
 
 

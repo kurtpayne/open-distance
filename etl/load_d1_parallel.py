@@ -28,6 +28,7 @@ from pathlib import Path
 import aiohttp
 
 from etl.config import DATA, addresses_csv
+from etl.load_hashes import LoadHashManifest, file_sha256
 from etl.states import BY_CODE
 
 
@@ -107,7 +108,19 @@ async def load_state(
     state: str,
     db_id: str,
     csv_path: Path,
-) -> int:
+    manifest: LoadHashManifest,
+    force: bool,
+) -> tuple[str, int]:
+    # Per-state source-hash skip: hash the exact CSV we'd load and compare
+    # against the last successful load. Skip the DROP+reload (and the ~5x FTS5
+    # write amplification) when unchanged. --force bypasses the skip.
+    src_hash = file_sha256(csv_path)
+    if not force and manifest.matches(state, "addresses_sha256", src_hash):
+        log(f"SKIP {state} (unchanged)")
+        return ("skip", 0)
+    reason = "forced" if force else ("changed" if manifest.recorded(state, "addresses_sha256") else "new")
+    log(f"LOAD {state} ({reason})")
+
     log(f"{state}: schema reset ({db_id})")
     await d1_query(session, account_id, db_id, SCHEMA_SQL)
 
@@ -170,7 +183,11 @@ async def load_state(
     inserted = total_rows - len(failed) * ROWS_PER_INSERT
     rate = inserted / elapsed if elapsed > 0 else 0
     log(f"{state}: done in {elapsed:.1f}s ({rate:.0f} rows/s, {inserted:,} inserted)")
-    return inserted
+    # Only record the hash on a fully clean load. If any batch failed the shard
+    # is partially populated, so we must NOT record -- the next run reloads it.
+    if not failed:
+        manifest.record(state, "addresses_sha256", src_hash)
+    return ("load", inserted)
 
 
 async def main(argv: list[str]) -> int:
@@ -181,6 +198,12 @@ async def main(argv: list[str]) -> int:
         default=None,
         help="Path to a toml file with [[d1_databases]] entries. "
              "Defaults to wrangler.toml at the repo root.",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Reload every state even if its addresses CSV is unchanged "
+             "(bypasses the per-state source-hash skip).",
     )
     ap.add_argument("states", nargs="*")
     args = ap.parse_args(argv)
@@ -213,6 +236,8 @@ async def main(argv: list[str]) -> int:
         log("nothing to load")
         return 1
 
+    manifest = LoadHashManifest(args.version)
+
     conn = aiohttp.TCPConnector(limit=CONCURRENCY * STATE_PARALLELISM + 8)
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     timeout = aiohttp.ClientTimeout(total=120, connect=15)
@@ -221,14 +246,22 @@ async def main(argv: list[str]) -> int:
 
         async def gated(s, db_id, csv_path):
             async with sem_states:
-                return await load_state(session, account_id, s, db_id, csv_path)
+                return await load_state(session, account_id, s, db_id, csv_path, manifest, args.force)
 
         results = await asyncio.gather(*(gated(*x) for x in states_to_load), return_exceptions=True)
         total = 0
+        loaded = 0
+        skipped = 0
         for r in results:
-            if isinstance(r, int):
-                total += r
-        log(f"all done: {total:,} rows loaded across {len(states_to_load)} states")
+            if isinstance(r, tuple):
+                kind, rows = r
+                if kind == "skip":
+                    skipped += 1
+                else:
+                    loaded += 1
+                    total += rows
+        log(f"all done: loaded {loaded} states, skipped {skipped}, ~{total:,} rows written "
+            f"(manifest: {manifest.path})")
     return 0
 
 

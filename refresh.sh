@@ -12,7 +12,14 @@
 #   refresh.sh tiles [STATES...]     per-state L0 tile build (CSR binaries)
 #   refresh.sh addresses [STATES...] NAD+OA+OSM merged CSV + TIGER segments CSV
 #   refresh.sh upload-r2             push tiles to R2 (parallel)
-#   refresh.sh load-d1 [STATES...]   push address shards to D1 (parallel HTTP)
+#   refresh.sh load-d1 [STATES...]   push address shards to D1 (parallel HTTP).
+#                                    Skips any state whose merged-addresses and
+#                                    segments CSVs are byte-identical to the last
+#                                    successful load (hash manifest at
+#                                    data/v2/out/<version>/load_hashes.json), so
+#                                    D1 write costs scale with what changed.
+#                                    Pass --force to reload every state anyway:
+#                                      refresh.sh load-d1 --force [STATES...]
 #   refresh.sh oa-attribution        refresh data/v2/oa/attribution.json from
 #                                    OpenAddresses' per-source manifests
 #                                    (no GeoJSON downloads; ~2-3 min)
@@ -205,14 +212,25 @@ stage_upload_r2() {
 
 stage_load_d1() {
   ensure_venv; load_env
-  local states; states=$(resolve_states "$@")
+  # Pull a leading/anywhere --force flag out of the args; the rest are states.
+  # --force bypasses the per-state source-hash skip and reloads every state.
+  local force=""
+  local positional=()
+  for arg in "$@"; do
+    if [[ "$arg" == "--force" ]]; then
+      force="--force"
+    else
+      positional+=("$arg")
+    fi
+  done
+  local states; states=$(resolve_states ${positional[@]+"${positional[@]}"})
   local v; v=$(read_version)
-  log "load-d1 ($v): addresses (parallel HTTP), states=$states"
+  log "load-d1 ($v): addresses (parallel HTTP)${force:+ --force}, states=$states"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.load_d1_parallel \
-    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
-  log "load-d1 ($v): TIGER segments, states=$states"
+    --version "$v" $force $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
+  log "load-d1 ($v): TIGER segments${force:+ --force}, states=$states"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.load_d1_segments \
-    --version "$v" $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
+    --version "$v" $force $states 2>&1 | tee -a "$LOG_DIR/load-d1.log"
 }
 
 stage_publish() {
