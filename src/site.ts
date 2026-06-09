@@ -1034,7 +1034,7 @@ ${TOP_BAR_HOME}
     <div class="wrap">
       <span class="eyebrow">Free · Open source · Continental US</span>
       <h1>Distances, without the <em>per-call bill.</em></h1>
-      <p class="lede">A wire-compatible distance-matrix API on the edge. <b>Distances within ~1% of the panel median on most route categories</b> (up to ~5% off on toll-routed and dense urban). $0 per call, no key, no analytics. Type an origin and a destination, or copy the curl.</p>
+      <p class="lede">A wire-compatible distance-matrix API on the edge. <b>Distances within ~1% of the panel median on most route categories</b> (up to ~5% off on toll-routed and dense urban); durations are <b>free-flow</b> — no live traffic (<a href="/coverage">see how we measure</a>). $0 per call, no key, no analytics. Type an origin and a destination, or copy the curl.</p>
 
       <div class="instrument">
         <div class="calc" id="calc">
