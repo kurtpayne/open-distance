@@ -121,7 +121,11 @@ format, plus two extra arrays surfacing geocode confidence:
 
 - No `key=` required. The public endpoint is rate-limited per IP
   (DurableObject-backed, default 5/sec, 100/hour, 1000/day). Self-hosters can
-  change limits via env vars or disable rate limiting entirely.
+  change limits via env vars or disable rate limiting entirely. On top of the
+  per-IP tiers there is an account-wide global daily cap (default 25,000
+  admitted requests/day, `GLOBAL_DAILY_LIMIT`); once exhausted the API returns
+  HTTP `503` with `Retry-After` (seconds until `00:00 UTC`) — contact
+  hello@open-distance.com for higher or dedicated limits.
 - Numbers come from our routed graph (no live traffic), so they differ from
   any traffic-aware provider.
 - Response omits `fare`, `duration_in_traffic`, `geocoded_waypoints`,
@@ -133,7 +137,7 @@ format, plus two extra arrays surfacing geocode confidence:
   quarterly). All additive — old clients ignore unknown fields.
 - `place_id:` inputs return `NOT_FOUND`.
 - Only supports `mode=driving` (any other mode is treated as driving).
-- Max 100 elements (origins × destinations) per request.
+- Max 25 elements (origins × destinations) per request.
 - Addresses whose geocode tier is only `centroid` (ZIP/city centroid, often
   miles off) return `NOT_FOUND` instead of a confidently-wrong distance.
 - Cross-region routes (SF↔LA, NYC↔Boston, Atlanta↔Miami) work via weighted A*
@@ -185,6 +189,18 @@ headers so callers can self-throttle without an extra probe:
 When a tier overflows, the API returns HTTP `429` with
 `"status":"OVER_QUERY_LIMIT"`, a `Retry-After` header, and
 `X-RateLimit-Tier = sec | hour | day` indicating which bucket overflowed.
+
+### Global daily cap
+
+On top of the per-IP tiers there is an account-wide hard cap on total
+admitted requests per UTC day (default **25,000/day**, env var
+`GLOBAL_DAILY_LIMIT`; set to `0` to disable). This bounds total serving
+cost so the hosted instance stays inside Cloudflare's free tier. Only
+requests that pass the per-IP check count toward the global budget. When
+the cap is hit the API returns HTTP `503` with
+`"status":"OVER_QUERY_LIMIT"`, a `Retry-After` header (seconds until the
+next `00:00 UTC` reset), and `Cache-Control: no-store`. Need higher or
+dedicated limits? Contact hello@open-distance.com for custom solutions.
 
 ## Populating data from a clean clone
 
@@ -294,6 +310,10 @@ instead of KV. The real cost is **D1 row _writes_** during a data load:
   overage from a reload or traffic spike.
 - Per-IP rate limits (`src/ratelimit.ts`, default 5/sec · 100/hour · 1000/day,
   env-tunable) bound per-client usage but not _global_ spend; pair with the alert.
+- An account-wide global daily cap (`src/global_limiter_do.ts`, default
+  25,000 admitted requests/day, env var `GLOBAL_DAILY_LIMIT`) hard-guarantees
+  total serving stays in the free tier (~$5/mo) by returning `503` once the
+  budget for the UTC day is exhausted.
 
 ## Address + street data sources
 

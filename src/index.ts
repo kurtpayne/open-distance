@@ -12,13 +12,16 @@ import {
   hashIp,
   RateLimitResult,
 } from "./ratelimit";
+import { GlobalLimitResult } from "./global_limiter_do";
 
 export { L1Router } from "./l1_router";
 export { RateLimiter } from "./ratelimiter_do";
+export { GlobalLimiter } from "./global_limiter_do";
 
 type Env = BaseEnv & {
   L1_ROUTER: DurableObjectNamespace;
   RATE_LIMITER: DurableObjectNamespace;
+  GLOBAL_LIMITER: DurableObjectNamespace;
 };
 
 // CORS: this is a free public API, so any origin can read it. Adding the
@@ -35,6 +38,30 @@ function withCors(resp: Response): Response {
   const headers = new Headers(resp.headers);
   for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
   return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+}
+
+// 503 returned when the account-wide global daily cap is hit. Mirrors the
+// Distance Matrix shape of rateLimitResponse (empty rows/addresses) so existing
+// clients parse it, but uses HTTP 503 + Retry-After (seconds to UTC midnight).
+function globalLimitResponse(gl: GlobalLimitResult): Response {
+  const body = {
+    status: "OVER_QUERY_LIMIT",
+    error_message:
+      `Service is at its daily request cap (${gl.limit}/day). ` +
+      `It resets at 00:00 UTC. ` +
+      `Need higher or dedicated limits? Contact hello@open-distance.com for custom solutions.`,
+    rows: [],
+    origin_addresses: [],
+    destination_addresses: [],
+  };
+  return new Response(JSON.stringify(body), {
+    status: 503,
+    headers: {
+      "content-type": "application/json; charset=UTF-8",
+      "retry-after": String(gl.resetIn),
+      "cache-control": "no-store",
+    },
+  });
 }
 
 export default {
@@ -166,6 +193,28 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
         rl = null;
       }
       if (rl && !rl.ok) return rateLimitResponse(rl, limits);
+
+      // Account-wide hard daily cap. Checked AFTER the per-IP gate passes so a
+      // single abuser is bounced with 429 and never burns the global budget --
+      // only per-IP-admitted requests count toward the global cap. One shared
+      // DO instance (idFromName("global")) holds the per-UTC-day counter in
+      // memory; trips at GLOBAL_DAILY_LIMIT (default 25k, 0 disables). Fail
+      // OPEN: any throw leaves `gl` null and we let the request through -- a
+      // limiter fault must never take the API down.
+      let gl: GlobalLimitResult | null = null;
+      try {
+        const gid = env.GLOBAL_LIMITER.idFromName("global");
+        const gstub = env.GLOBAL_LIMITER.get(gid);
+        const gresp = await gstub.fetch("https://gl/check", {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        gl = (await gresp.json()) as GlobalLimitResult;
+      } catch {
+        gl = null;
+      }
+      if (gl && !gl.ok) return globalLimitResponse(gl);
+
       const resp = await handleDistanceMatrix(url, env);
       // Mirror the rate-limit state back to the caller on every successful
       // response so they can self-throttle without a probe round-trip. When the

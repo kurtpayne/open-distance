@@ -189,7 +189,8 @@ export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig)
     error_message:
       `Rate limit exceeded: ${tierLimit} requests per ${tierWindow} per IP. ` +
       `Try again in ${result.retryAfter ?? 60} second(s). ` +
-      `No paid tier -- self-host with your own limits: https://github.com/kurtpayne/open-distance`,
+      `No paid tier -- self-host with your own limits: https://github.com/kurtpayne/open-distance. ` +
+      `Contact hello@open-distance.com for custom solutions.`,
     rows: [],
     origin_addresses: [],
     destination_addresses: [],

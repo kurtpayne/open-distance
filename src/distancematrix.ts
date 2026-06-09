@@ -281,10 +281,10 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
       rows: [], origin_addresses: [], destination_addresses: [],
     });
   }
-  if (origins.length * destinations.length > 100) {
+  if (origins.length * destinations.length > 25) {
     return jsonResponse({
       status: "MAX_ELEMENTS_EXCEEDED",
-      error_message: "Max 100 elements (origins × destinations) per request.",
+      error_message: "Max 25 elements (origins × destinations) per request. Contact hello@open-distance.com for custom solutions.",
       rows: [], origin_addresses: [], destination_addresses: [],
     });
   }

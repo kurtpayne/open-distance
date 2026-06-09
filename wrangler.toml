@@ -39,6 +39,14 @@ class_name = "L1Router"
 name = "RATE_LIMITER"
 class_name = "RateLimiter"
 
+# Account-wide global daily request cap (DurableObject). A single shared
+# instance (idFromName("global")) holds an in-memory per-UTC-day counter and
+# trips at GLOBAL_DAILY_LIMIT (default 25k, 0 disables) to bound total serving
+# cost. In-memory only (eviction = reset = fail open), like RATE_LIMITER.
+[[durable_objects.bindings]]
+name = "GLOBAL_LIMITER"
+class_name = "GlobalLimiter"
+
 [[migrations]]
 tag = "v1"
 new_classes = ["L1Router"]
@@ -49,6 +57,12 @@ new_classes = ["L1Router"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["RateLimiter"]
+
+# GlobalLimiter: same in-memory-only posture as RateLimiter; declared as a
+# SQLite class (the only kind allowed for new namespaces).
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["GlobalLimiter"]
 
 [[kv_namespaces]]
 binding = "CACHE"
