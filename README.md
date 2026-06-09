@@ -17,7 +17,7 @@ Live at **https://open-distance.com**.
 [Contributing](CONTRIBUTING.md)
 
 - Hostname: `https://open-distance.com`
-- Auth: none — public endpoint, rate-limited per IP (KV-backed)
+- Auth: none — public endpoint, rate-limited per IP (DurableObject-backed)
 - Coverage: continental US (lower 48 + DC)
 - Endpoints:
   - `GET /maps/api/distancematrix/json` — the main API (legacy Distance Matrix JSON shape)
@@ -119,9 +119,9 @@ format, plus two extra arrays surfacing geocode confidence:
 
 ## Documented deviations from the legacy API
 
-- No `key=` required. The public endpoint is rate-limited per IP (KV-backed,
-  default 25/sec, 500/hour, 10k/day). Self-hosters can change limits via env
-  vars or disable rate limiting entirely.
+- No `key=` required. The public endpoint is rate-limited per IP
+  (DurableObject-backed, default 5/sec, 100/hour, 1000/day). Self-hosters can
+  change limits via env vars or disable rate limiting entirely.
 - Numbers come from our routed graph (no live traffic), so they differ from
   any traffic-aware provider.
 - Response omits `fare`, `duration_in_traffic`, `geocoded_waypoints`,
@@ -215,30 +215,6 @@ The first `./refresh.sh all` is long — several hours of downloads (~50 GB
 of source data) plus several hours of build CPU.
 You can also restrict to a single state for development: `./refresh.sh all CA`.
 
-## Costs
-
-**Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
-**< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
-(~1 M/day) sit inside Cloudflare's included tiers, and R2/KV storage is a few
-dollars. The real cost is **D1 row _writes_** during a data load:
-
-| Action | Approx. cost | Why |
-|---|---|---|
-| **Full continental-US load** (`refresh.sh all`) | **~$500–$1,000+ (one-time)** | ~222 M addresses + ~34 M segments, but D1 bills ~1.38 B **rows written** — the `addr_fts` FTS5 index (built per-row via the AFTER-INSERT trigger) is ~80% of it. D1 writes are **$1 / million** (50 M/mo free). |
-| Reload one large state (e.g. TX) | ~$30–$150 | Same FTS5 write amplification, proportional to that state's address count. |
-| Serving | **< $10 / month** | Reads are within free tiers; the only ongoing writes are the rate limiter (~3 KV writes/req) + leg cache (≤100 KV writes/req, cold). KV writes bill at $5/M (1k/day free). |
-
-**Implications:**
-- A _full_ refresh is a several-hundred-dollar event. **Do not refresh on a
-  blind monthly cron.** Upstream sources (NAD quarterly, OA/OSM irregular)
-  rarely all change at once — refresh only the states whose source data actually
-  changed (see below), turning a ~$1,000 reload into a small partial one.
-- Set a **Cloudflare billing alert** — it's the only hard backstop against a
-  surprise overage from a reload or a traffic spike.
-- Per-IP rate limits (`src/ratelimit.ts`, default 5/sec · 100/hour · 1000/day,
-  env-tunable) bound per-client KV/D1 usage; they do not cap _global_ spend, so
-  pair them with the billing alert.
-
 ### Pre-filtering refreshes to avoid writes
 
 `refresh.sh load-d1` currently DROPs and reloads every shard, re-paying to write
@@ -261,11 +237,63 @@ Individual stages (resumable, idempotent):
 | `tiles`     | Build per-tile CSR road-graph binaries from OSM |
 | `addresses` | NAD → `.nad.csv`, OA → `.oa.csv`, OSM → `.osm.csv`, merge → `.csv`, plus TIGER segments → `segments/<STATE>.csv` |
 | `upload-r2` | Push tile binaries to R2 (parallel xargs; failures auto-retried) |
-| `load-d1`   | Push merged address CSVs + TIGER segments to D1 shards (parallel HTTP, with 971/7429 backoff) |
+| `load-d1`   | Push merged address CSVs + TIGER segments to D1 shards (parallel HTTP, with 971/7429 backoff). Skips any state whose CSVs are unchanged since the last successful load (see below) |
 | `publish`   | Write manifest JSON to KV under `manifest:active` |
 
 Per-stage state can be restricted: `./refresh.sh tiles CA NY TX` or
 `./refresh.sh load-d1 IL OH`.
+
+### `load-d1` per-state source-hash skip
+
+D1 bills per row **written** ($1/M) and the address shard's per-row FTS5
+trigger amplifies each address insert ~5×, so a full reload of all 49 shards
+costs roughly **$1,000**. Most refreshes only change a handful of states, so
+`load-d1` skips the expensive `DROP`+reload for any state whose source CSV is
+byte-identical to its last successful load:
+
+- Before loading a state, each loader computes a SHA-256 of the exact artifact
+  it would load — the merged addresses CSV (`load_d1_parallel`) or the TIGER
+  segments CSV (`load_d1_segments`).
+- It compares against a manifest at `data/v2/out/<version>/load_hashes.json`
+  (`{ "<STATE>": { "addresses_sha256": "...", "segments_sha256": "..." } }`).
+- **Unchanged** (hash recorded *and* matching) → `SKIP <STATE> (unchanged)`,
+  no writes.
+- **Changed / new / no prior record** → `LOAD <STATE> (changed|new)` and the
+  shard is reloaded. A missing manifest entry always loads.
+- The new hash is recorded **only after a fully clean load** (no failed
+  batches), written incrementally so a mid-run failure preserves the states
+  that already completed.
+
+Pass `--force` to reload every state regardless of the manifest:
+
+```bash
+./refresh.sh load-d1 --force          # reload all states
+./refresh.sh load-d1 --force IL OH    # force-reload specific states
+```
+
+## Costs
+
+**Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
+**< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
+(~1 M/day) sit inside Cloudflare's included tiers, R2/KV storage is a few dollars,
+and the per-IP rate limiter now runs on a Durable Object (~$0.15/M requests)
+instead of KV. The real cost is **D1 row _writes_** during a data load:
+
+| Action | Approx. cost | Why |
+|---|---|---|
+| **Full continental-US load** (`refresh.sh all`) | **~$500–$1,000+ (one-time)** | ~222 M addresses + ~34 M segments, but D1 bills ~1.38 B **rows written** — the `addr_fts` FTS5 index (built per-row via the AFTER-INSERT trigger) is ~80% of it. D1 writes are **$1 / million** (50 M/mo free). |
+| Reload one large state (e.g. TX) | ~$30–$150 | Same FTS5 write amplification, proportional to that state's address count. |
+| Serving | **< $10 / month** | Reads are within free tiers; rate limiting is on a Durable Object, not KV. |
+
+**Implications:**
+- A _full_ refresh is a several-hundred-dollar event. **Do not refresh on a
+  blind cron.** Upstream sources (NAD quarterly, OA/OSM irregular) rarely all
+  change at once — the per-state source-hash skip above reloads only changed
+  states, turning a ~$1,000 reload into a small partial one.
+- Set a **Cloudflare billing alert** — the only hard backstop against a surprise
+  overage from a reload or traffic spike.
+- Per-IP rate limits (`src/ratelimit.ts`, default 5/sec · 100/hour · 1000/day,
+  env-tunable) bound per-client usage but not _global_ spend; pair with the alert.
 
 ## Address + street data sources
 
@@ -319,7 +347,8 @@ src/
   geocode.ts             per-state D1 sharded geocoder + TIGER fallback
   interpolate.ts         TIGER segment lookup + linear interpolation
   normalize.ts           address normalizer
-  ratelimit.ts           KV-backed per-IP rate limiter (GDPR-clean: hashed IP)
+  ratelimit.ts           per-IP rate-limit types + pure logic (GDPR-clean: hashed IP)
+  ratelimiter_do.ts      RateLimiter DurableObject (in-memory counters; ~100x cheaper than KV)
   router.ts              tiled lazy-fetch one-to-many Dijkstra (TS fallback)
   site.ts                landing / docs / privacy / attribution HTML
   state_parser.ts        parse state code from query

@@ -32,9 +32,23 @@ bucket_name = "od-graph"
 name = "L1_ROUTER"
 class_name = "L1Router"
 
+# Per-IP rate limiter (DurableObject). One instance per client IP holds the
+# sec/hour/day counters in memory; ~100x cheaper than the old KV path's 3
+# writes/request. Counters are in-memory only (eviction = reset = fail open).
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
 [[migrations]]
 tag = "v1"
 new_classes = ["L1Router"]
+
+# SQLite-backed DO class (the only kind allowed for new namespaces). RateLimiter
+# keeps counters in memory and does not touch DO storage, but must still be
+# declared as a SQLite class.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RateLimiter"]
 
 [[kv_namespaces]]
 binding = "CACHE"
