@@ -120,11 +120,13 @@ format, plus two extra arrays surfacing geocode confidence:
 ## Documented deviations from the legacy API
 
 - No `key=` required. The public endpoint is rate-limited per IP
-  (DurableObject-backed, default 5/sec, 100/hour, 1000/day). Self-hosters can
-  change limits via env vars or disable rate limiting entirely. On top of the
-  per-IP tiers there is an account-wide global daily cap (default 25,000
-  admitted requests/day, `GLOBAL_DAILY_LIMIT`); once exhausted the API returns
-  HTTP `503` with `Retry-After` (seconds until `00:00 UTC`) — contact
+  (DurableObject-backed). It's a **hybrid**: a per-second request burst guard
+  (default 5 req/sec) plus a per-day **element** budget (default 2,500
+  elements/day per IP, where elements = origins × destinations). Self-hosters
+  can change limits via env vars or disable rate limiting entirely. On top of
+  the per-IP tiers there is an account-wide global daily cap (default 25,000
+  elements/day, `GLOBAL_ELEMENTS_PER_DAY`); once exhausted the API returns HTTP
+  `503` with `Retry-After` (seconds until `00:00 UTC`) — contact
   hello@open-distance.com for higher or dedicated limits.
 - Numbers come from our routed graph (no live traffic), so they differ from
   any traffic-aware provider.
@@ -157,71 +159,81 @@ Every operator-tunable knob is a `[vars]` entry in `wrangler.toml` (also in
 customize a self-hosted deployment, edit `wrangler.toml [vars]` — no code
 changes needed.** Cloudflare delivers these as strings; the Worker parses them.
 
-| Var                  | Default                  | Meaning |
-|----------------------|--------------------------|---------|
-| `RL_PER_SEC`         | `5`                      | Per-IP requests per second; `0` disables this tier |
-| `RL_PER_HOUR`        | `100`                    | Per-IP requests per hour; `0` disables this tier |
-| `RL_PER_DAY`         | `1000`                   | Per-IP requests per day; `0` disables this tier |
-| `GLOBAL_DAILY_LIMIT` | `25000`                  | Account-wide admitted requests per UTC day; `0` disables the cap |
-| `MAX_ELEMENTS`       | `25`                     | Max `origins × destinations` elements per request (floored at 1) |
-| `CONTACT_EMAIL`      | `hello@open-distance.com`| Contact address shown in rejection messages + on the site; set to `""` to omit the contact call-to-action entirely |
+| Var                       | Default                  | Meaning |
+|---------------------------|--------------------------|---------|
+| `RL_PER_SEC`              | `5`                      | Per-IP requests per second (burst guard, charged 1/request); `0` disables this tier |
+| `RL_ELEMENTS_PER_DAY`     | `2500`                   | Per-IP **elements** per day (elements = origins × destinations); `0` disables. Falls back to the legacy `RL_PER_DAY` if that key is set instead (for existing deployments) |
+| `GLOBAL_ELEMENTS_PER_DAY` | `25000`                  | Account-wide **elements** per UTC day; `0` disables the cap. Falls back to the legacy `GLOBAL_DAILY_LIMIT` if set instead |
+| `MAX_ELEMENTS`            | `25`                     | Max `origins × destinations` elements per request (floored at 1) |
+| `CONTACT_EMAIL`           | `hello@open-distance.com`| Contact address shown in rejection messages + on the site; set to `""` to omit the contact call-to-action entirely |
 
-Setting all three `RL_PER_*` to `0` yields an unlimited per-IP deployment (e.g.
-a private fork inside a trusted network). The rendered site (`/`, `/docs`) and
-the machine-readable `/llms.txt` reflect these values at request time, so a fork
-shows its own limits and contact address rather than the upstream defaults.
+> **Migration note:** the daily caps are now metered in **elements** (one
+> origin→destination route solve), not raw requests. The per-second tier is
+> still a request burst guard. The old `RL_PER_DAY` / `GLOBAL_DAILY_LIMIT` keys
+> are still read as fallbacks so existing forks keep working, but you should
+> switch to the element-named keys so the unit is unambiguous.
+
+Setting both `RL_PER_SEC` and `RL_ELEMENTS_PER_DAY` to `0` yields an unlimited
+per-IP deployment (e.g. a private fork inside a trusted network). The rendered
+site (`/`, `/docs`) and the machine-readable `/llms.txt` reflect these values at
+request time, so a fork shows its own limits and contact address rather than the
+upstream defaults.
 
 ## Rate limits and response headers
 
-Per-IP rate limits on the hosted deployment:
+Hybrid per-IP rate limits on the hosted deployment — a request burst guard plus
+an element cost budget (elements = origins × destinations, the
+[same definition Google uses](https://developers.google.com/maps/documentation/distance-matrix/usage-and-billing)):
 
-| Window  | Limit | Env var       |
-|---------|-------|---------------|
-| Second  | 5     | `RL_PER_SEC`  |
-| Hour    | 100   | `RL_PER_HOUR` |
-| Day     | 1,000 | `RL_PER_DAY`  |
+| Window         | Limit             | Env var                 |
+|----------------|-------------------|-------------------------|
+| Second (burst) | 5 requests        | `RL_PER_SEC`            |
+| Day            | 2,500 elements    | `RL_ELEMENTS_PER_DAY`   |
+
+A single `1×1` request charges 1 element to the daily budget; a `5×5` matrix
+charges 25. The per-second tier always charges 1 regardless of matrix size.
 
 **There is no paid tier.** The hosted instance is a free shared resource for
 casual use. If you need higher limits, self-host on your own Cloudflare
-account and tune the env vars above. Set any of them to `0` to disable that
-tier; set all three to `0` for an unlimited deployment (e.g. private fork
-inside a trusted network).
+account and tune the env vars above. Set either to `0` to disable that tier;
+set both to `0` for an unlimited deployment (e.g. private fork inside a
+trusted network).
 
 Every API response — both `200` success and `429` rate-limited — carries
 headers so callers can self-throttle without an extra probe:
 
-| Header                            | Meaning                                    |
-|-----------------------------------|--------------------------------------------|
-| `X-RateLimit-Limit-Second`        | Configured per-second limit                |
-| `X-RateLimit-Remaining-Second`    | Requests left in the current 1-s window    |
-| `X-RateLimit-Reset-Second`        | Seconds until that window rolls (always 1) |
-| `X-RateLimit-Limit-Hour`          | Configured per-hour limit                  |
-| `X-RateLimit-Remaining-Hour`      | Requests left in the current hour bucket   |
-| `X-RateLimit-Reset-Hour`          | Seconds until the hour bucket rolls        |
-| `X-RateLimit-Limit-Day`           | Configured per-day limit                   |
-| `X-RateLimit-Remaining-Day`       | Requests left in the current day bucket    |
-| `X-RateLimit-Reset-Day`           | Seconds until the day bucket rolls         |
-| `RateLimit-Limit`                 | [IETF draft][rl-draft]: tightest tier's limit |
-| `RateLimit-Remaining`             | Remaining of the tightest tier             |
-| `RateLimit-Reset`                 | Seconds until the tightest tier resets     |
+| Header                            | Meaning                                          |
+|-----------------------------------|--------------------------------------------------|
+| `X-RateLimit-Limit-Second`        | Configured per-second request limit              |
+| `X-RateLimit-Remaining-Second`    | Requests left in the current 1-s window          |
+| `X-RateLimit-Reset-Second`        | Seconds until that window rolls (always 1)       |
+| `X-RateLimit-Limit-Day`           | Configured per-day **element** budget            |
+| `X-RateLimit-Remaining-Day`       | **Elements** left in the current UTC-day budget  |
+| `X-RateLimit-Reset-Day`           | Seconds until the day bucket rolls               |
+| `RateLimit-Limit`                 | [IETF draft][rl-draft]: tightest tier's limit    |
+| `RateLimit-Remaining`             | Remaining of the tightest tier                   |
+| `RateLimit-Reset`                 | Seconds until the tightest tier resets           |
 
 [rl-draft]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
 
-When a tier overflows, the API returns HTTP `429` with
-`"status":"OVER_QUERY_LIMIT"`, a `Retry-After` header, and
-`X-RateLimit-Tier = sec | hour | day` indicating which bucket overflowed.
+The `-Day` values are **element** budgets (elements = origins × destinations),
+not request counts; the `-Second` values are request counts. When a tier
+overflows, the API returns HTTP `429` with `"status":"OVER_QUERY_LIMIT"`, a
+`Retry-After` header, and `X-RateLimit-Tier = sec | day` indicating which
+bucket overflowed.
 
 ### Global daily cap
 
 On top of the per-IP tiers there is an account-wide hard cap on total
-admitted requests per UTC day (default **25,000/day**, env var
-`GLOBAL_DAILY_LIMIT`; set to `0` to disable). This bounds total serving
-cost so the hosted instance stays inside Cloudflare's free tier. Only
-requests that pass the per-IP check count toward the global budget. When
-the cap is hit the API returns HTTP `503` with
-`"status":"OVER_QUERY_LIMIT"`, a `Retry-After` header (seconds until the
-next `00:00 UTC` reset), and `Cache-Control: no-store`. Need higher or
-dedicated limits? Contact hello@open-distance.com for custom solutions.
+admitted **elements** per UTC day (default **25,000 elements/day**, env var
+`GLOBAL_ELEMENTS_PER_DAY`; set to `0` to disable). Metering by elements (one
+origin→destination route solve) makes the cap track actual serving cost so the
+hosted instance stays inside Cloudflare's free tier. Only requests that pass
+the per-IP check count toward the global budget. When the cap is hit the API
+returns HTTP `503` with `"status":"OVER_QUERY_LIMIT"`, a `Retry-After` header
+(seconds until the next `00:00 UTC` reset), and `Cache-Control: no-store`. Need
+higher or dedicated limits? Contact hello@open-distance.com for custom
+solutions.
 
 ## Populating data from a clean clone
 
@@ -318,7 +330,7 @@ Pass `--force` to reload every state regardless of the manifest:
 | **Maintenance** | **~$200/year** (~$50/quarter) | Refreshing only the states whose source data changed (NAD is quarterly; the per-state skip handles the rest). |
 | **Hosting** | **~$5/month** | Serving up to **~750k–1M queries/month**, inside Cloudflare's free tier. |
 
-So a fork is ~$500 up front, then **~$5/mo + ~$200/yr** to run the entire lower-48 for a long horizon. The hosted instance is capped at **25,000 requests/day (~750k/month)** via `GLOBAL_DAILY_LIMIT` — that ceiling is what keeps it inside the free tier. Raising it to ~1M/month stays ~$5/mo; past that it's roughly **+$5 per additional 1M requests/month** (lift the billing alert to match). The detail behind these numbers:
+So a fork is ~$500 up front, then **~$5/mo + ~$200/yr** to run the entire lower-48 for a long horizon. The hosted instance is capped at **25,000 elements/day (~750k/month)** via `GLOBAL_ELEMENTS_PER_DAY` — that ceiling is what keeps it inside the free tier. Because the cap is now metered in **elements** (one origin→destination route solve) rather than raw requests, it bounds the actual unit of serving work, so the ~$5/mo guarantee is exact regardless of matrix sizes. Raising it to ~1M elements/month stays ~$5/mo; past that it's roughly **+$5 per additional 1M elements/month** (lift the billing alert to match). The detail behind these numbers:
 
 **Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
 **< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
@@ -339,12 +351,13 @@ instead of KV. The real cost is **D1 row _writes_** during a data load:
   states, turning a ~$1,000 reload into a small partial one.
 - Set a **Cloudflare billing alert** — the only hard backstop against a surprise
   overage from a reload or traffic spike.
-- Per-IP rate limits (`src/ratelimit.ts`, default 5/sec · 100/hour · 1000/day,
-  env-tunable) bound per-client usage but not _global_ spend; pair with the alert.
+- Per-IP rate limits (`src/ratelimit.ts`, hybrid: 5 requests/sec burst +
+  2,500 elements/day, env-tunable) bound per-client usage but not _global_
+  spend; pair with the alert.
 - An account-wide global daily cap (`src/global_limiter_do.ts`, default
-  25,000 admitted requests/day, env var `GLOBAL_DAILY_LIMIT`) hard-guarantees
-  total serving stays in the free tier (~$5/mo) by returning `503` once the
-  budget for the UTC day is exhausted.
+  25,000 admitted elements/day, env var `GLOBAL_ELEMENTS_PER_DAY`)
+  hard-guarantees total serving stays in the free tier (~$5/mo) by returning
+  `503` once the element budget for the UTC day is exhausted.
 
 ## Address + street data sources
 

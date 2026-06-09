@@ -1,54 +1,64 @@
 // Per-IP rate limiting. Shared types + pure decision logic live here; the
 // actual counters live in the RateLimiter DurableObject (src/ratelimiter_do.ts)
 // -- one DO instance per client IP. DO bumps cost ~$0.15/M requests vs KV
-// writes at $5/M, so the same 3-tier check is ~100x cheaper.
+// writes at $5/M, so the same tier check is ~100x cheaper.
+//
+// **Hybrid metering (burst in requests, cost in elements):** the per-second
+// tier is a pure burst/DoS guard and is charged 1 per request. The per-day tier
+// is a COST budget measured in ELEMENTS (= origins × destinations), so a 5x5
+// matrix request charges 25 to the daily budget but still only 1 to the per-
+// second burst. This makes the daily/global caps track actual serving cost (an
+// element is one origin->destination route solve) rather than raw request count.
 //
 // **Privacy**: the IP itself is never stored. The DO is addressed by a salted
 // SHA-256 of the IP (see hashIp), so:
-//   - the DO name reveals only "some client hit N times in window X", not which
-//     IP
+//   - the DO name reveals only "some client used N in window X", not which IP
 //   - rotating RL_SALT severs all linkability across the rotation
 // Counters are held in DO memory keyed by the current window bucket; nothing
 // durable is written per request, and a DO eviction just resets a counter
 // (fails open) -- acceptable for abuse mitigation.
 //
-// Three tiers (per-second / per-hour / per-day); a request is blocked when
-// any tier is over its limit. Defaults 5/sec, 100/hour, 1000/day per IP.
-// Tunable via env vars RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY (0 disables).
+// Two tiers (per-second requests / per-day elements); a request is blocked when
+// either tier is already at/over its limit. Defaults 5 requests/sec, 2500
+// elements/day per IP. Tunable via env vars RL_PER_SEC / RL_ELEMENTS_PER_DAY
+// (0 disables a tier). RL_ELEMENTS_PER_DAY falls back to the legacy RL_PER_DAY
+// for existing deployments/forks.
 //
 // COST NOTE: defaults are conservative to bound per-IP usage. Counters now live
-// in a Durable Object (~$0.15/M requests) instead of KV (was 3 writes/req at
-// $5/M). Per-IP limits don't cap GLOBAL spend — pair with a Cloudflare billing
+// in a Durable Object (~$0.15/M requests) instead of KV (was writes/req at
+// $5/M). Per-IP limits don't cap GLOBAL spend -- pair with a Cloudflare billing
 // alert. Raise via env for a trusted/private fork.
 //
 // Every response (both allowed and 429) carries headers:
-//   X-RateLimit-Limit-{Second,Hour,Day}      = configured limit for that tier
-//   X-RateLimit-Remaining-{Second,Hour,Day}  = requests left in the current window
-//   X-RateLimit-Reset-{Second,Hour,Day}      = seconds until that window rolls
+//   X-RateLimit-Limit-{Second,Day}      = configured limit for that tier
+//   X-RateLimit-Remaining-{Second,Day}  = budget left in the current window
+//                                         (requests for Second, ELEMENTS for Day)
+//   X-RateLimit-Reset-{Second,Day}      = seconds until that window rolls
 // plus the IETF draft single-policy header set:
 //   RateLimit-Limit / RateLimit-Remaining / RateLimit-Reset
 // reflecting whichever tier is currently the tightest constraint.
 
 export interface RateLimitConfig {
+  // Per-IP requests/second (burst guard; charged 1 per request).
   perSec: number;
-  perHour: number;
+  // Per-IP elements/day (cost budget; charged `elements` per request).
   perDay: number;
 }
 
 export const DEFAULT_LIMITS: RateLimitConfig = {
   perSec: 5,
-  perHour: 100,
-  perDay: 1_000,
+  perDay: 2_500,
 };
 
-export type TierName = "sec" | "hour" | "day";
+export type TierName = "sec" | "day";
 
 export interface TierState {
   name: TierName;
   limit: number;
-  // Requests already used in the current window (BEFORE this request consumed a slot).
+  // Amount already used in the current window (BEFORE this request was charged).
+  // Requests for the "sec" tier; ELEMENTS for the "day" tier.
   used: number;
-  // Requests left AFTER this request is counted. Floored at 0.
+  // Budget left AFTER this request is charged. Floored at 0.
   remaining: number;
   // Seconds until the current window rolls and the counter resets.
   resetIn: number;
@@ -63,18 +73,23 @@ export interface RateLimitResult {
   currentCount?: number;
 }
 
+// Read the per-IP limits from env.
+//   perSec -> RL_PER_SEC (requests/sec, burst)
+//   perDay -> RL_ELEMENTS_PER_DAY (elements/day), falling back to the legacy
+//             RL_PER_DAY when the element-named key is absent so existing
+//             deployments/forks keep working.
 export function readLimitsFromEnv(env: { [k: string]: unknown }): RateLimitConfig {
+  const elementsPerDay = env.RL_ELEMENTS_PER_DAY ?? env.RL_PER_DAY;
   return {
     perSec: Number(env.RL_PER_SEC ?? DEFAULT_LIMITS.perSec),
-    perHour: Number(env.RL_PER_HOUR ?? DEFAULT_LIMITS.perHour),
-    perDay: Number(env.RL_PER_DAY ?? DEFAULT_LIMITS.perDay),
+    perDay: Number(elementsPerDay ?? DEFAULT_LIMITS.perDay),
   };
 }
 
 // Salted SHA-256 of an IP -> short hex id, with NO per-tier/per-bucket
 // component. Used by the DurableObject path as the DO instance name so each
-// IP's counters live in their own DO. Like ipBucketKey, the raw IP is never
-// stored; collisions only over-count (share a DO), never under-count.
+// IP's counters live in their own DO. The raw IP is never stored; collisions
+// only over-count (share a DO), never under-count.
 export async function hashIp(salt: string, ip: string): Promise<string> {
   const data = new TextEncoder().encode(`${salt}|do|${ip}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
@@ -83,14 +98,12 @@ export async function hashIp(salt: string, ip: string): Promise<string> {
 
 export function tierResetIn(name: TierName, now: number): number {
   if (name === "sec") return 1;
-  if (name === "hour") return 3600 - (now % 3600);
   return 86400 - (now % 86400);
 }
 
 // A single tier's configuration for the current instant: which window bucket it
 // falls in and its limit. `bucket` rolls when the window advances (sec=now,
-// hour=floor(now/3600), day=floor(now/86400)) -- when it changes, that tier's
-// counter resets.
+// day=floor(now/86400)) -- when it changes, that tier's counter resets.
 export interface TierSpec {
   name: TierName;
   bucket: number;
@@ -102,20 +115,36 @@ export interface TierSpec {
 // one place.
 export function computeTiers(cfg: RateLimitConfig, now: number): TierSpec[] {
   return [
-    { name: "sec"  as TierName, bucket: now,                    limit: cfg.perSec  },
-    { name: "hour" as TierName, bucket: Math.floor(now / 3600), limit: cfg.perHour },
-    { name: "day"  as TierName, bucket: Math.floor(now / 86400), limit: cfg.perDay },
+    { name: "sec" as TierName, bucket: now,                     limit: cfg.perSec },
+    { name: "day" as TierName, bucket: Math.floor(now / 86400), limit: cfg.perDay },
   ].filter(t => t.limit > 0);
 }
 
-// Pure rate-limit decision given the tiers and the counts already used in each
-// tier's current window (BEFORE this request). Returns the RateLimitResult and,
-// when allowed, the post-increment counts the caller should persist. No I/O --
-// both the KV path and the DurableObject call this so the contract is identical.
+// Per-tier charge for a request. The per-second tier is a request-rate burst
+// guard (always +1); the per-day tier is a cost budget charged by element count
+// (origins × destinations). A request that doesn't carry a meaningful element
+// count (malformed params -> elements=0) charges nothing to the day tier but
+// still consumes a per-second slot.
+function tierCost(name: TierName, elements: number): number {
+  return name === "sec" ? 1 : elements;
+}
+
+// Pure rate-limit decision given the tiers, the amounts already used in each
+// tier's current window (BEFORE this request), and the element count for this
+// request. Returns the RateLimitResult and, when admitted, the post-charge
+// counts the caller should persist. No I/O -- the DurableObject calls this so
+// the contract is identical and testable.
+//
+// Admit-then-charge: a tier blocks only when it is ALREADY at/over its limit
+// (used >= limit). A request that fits is admitted and charged its full cost,
+// so the boundary request may overshoot the daily budget by up to `elements`-1
+// (capped at MAX_ELEMENTS-1, so < 25). That's intentional and matches the prior
+// admit-then-increment semantics.
 export function evaluateTiers(
   tiers: TierSpec[],
   used: number[],
   now: number,
+  elements: number,
 ): { result: RateLimitResult; newCounts: number[] } {
   if (tiers.length === 0) {
     return { result: { ok: true, tiers: [] }, newCounts: [] };
@@ -144,8 +173,8 @@ export function evaluateTiers(
     }
   }
 
-  // Allowed: count this request against every tier.
-  const newCounts = used.map(u => u + 1);
+  // Admitted: charge this request against every tier (1 to sec, `elements` to day).
+  const newCounts = tiers.map((t, j) => used[j] + tierCost(t.name, elements));
   const states: TierState[] = tiers.map((t, j) => ({
     name: t.name,
     limit: t.limit,
@@ -157,11 +186,12 @@ export function evaluateTiers(
 }
 
 
-// Build the X-RateLimit-* and IETF RateLimit-* headers for any response.
+// Build the X-RateLimit-* and IETF RateLimit-* headers for any response. For the
+// day tier the limit/remaining values are ELEMENT budgets, not request counts.
 export function rateLimitHeaders(tiers: TierState[]): Record<string, string> {
   const h: Record<string, string> = {};
   for (const t of tiers) {
-    const k = t.name === "sec" ? "second" : t.name === "hour" ? "hour" : "day";
+    const k = t.name === "sec" ? "second" : "day";
     h[`x-ratelimit-limit-${k}`] = String(t.limit);
     h[`x-ratelimit-remaining-${k}`] = String(t.remaining);
     h[`x-ratelimit-reset-${k}`] = String(t.resetIn);
@@ -180,17 +210,18 @@ export function rateLimitHeaders(tiers: TierState[]): Record<string, string> {
 // `cta` is the contact call-to-action sentence (built via contactCta in
 // src/config.ts) appended to the error message. Pass "" to omit it -- callers
 // read CONTACT_EMAIL from env so the contact address is config, not code.
+//
+// The per-second tier reports a requests/second budget; the per-day tier now
+// reports an ELEMENTS/day budget (elements = origins × destinations).
 export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig, cta = ""): Response {
-  const tierLimit = result.limitName === "sec" ? cfg.perSec
-                  : result.limitName === "hour" ? cfg.perHour
-                  : cfg.perDay;
-  const tierWindow = result.limitName === "sec" ? "second"
-                   : result.limitName === "hour" ? "hour"
-                   : "day";
+  const isSec = result.limitName === "sec";
+  const tierLimit = isSec ? cfg.perSec : cfg.perDay;
+  const unit = isSec ? "requests per second" : "elements per day";
   const body = {
     status: "OVER_QUERY_LIMIT",
     error_message:
-      `Rate limit exceeded: ${tierLimit} requests per ${tierWindow} per IP. ` +
+      `Rate limit exceeded: Per-IP limit ${tierLimit} ${unit}` +
+      `${isSec ? "" : " (elements = origins × destinations)"}. ` +
       `Try again in ${result.retryAfter ?? 60} second(s). ` +
       `No paid tier -- self-host with your own limits: https://github.com/kurtpayne/open-distance.` +
       cta,

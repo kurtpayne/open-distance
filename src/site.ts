@@ -713,7 +713,7 @@ function homeJs(cfg: SiteConfig): string {
   // ---- FAQ ----
   var FAQ = {
     'Can do': [
-      ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (${cfg.perSec}/sec, ${cfg.perHour}/hour, ${cfg.perDay}/day), plus an account-wide daily cap. Forks that want private auth can re-add it.'],
+      ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (${cfg.perSec} requests/sec burst, ${cfg.perDay} elements/day where elements = origins × destinations), plus an account-wide daily element cap. Forks that want private auth can re-add it.'],
       ['Can I drop it in where a commercial distance matrix was?','Mostly, yes. The JSON is byte-compatible with the legacy distance-matrix shape, so old clients keep parsing it. It adds a few fields (<code>*_matches</code>, <code>data_version</code>, <code>copyrights</code>) that old clients simply ignore.'],
       ['How big a matrix can I request?','Up to <code>${cfg.maxElements}</code> elements — origins × destinations — in a single call.'],
       ['Do cross-country routes work?','Yes. NYC↔LA, Seattle↔Miami, Boston↔Houston — anything in the lower 48 + DC. Long-haul queries route through a national highway overlay.'],
@@ -1329,25 +1329,24 @@ ${topBarOther("/docs")}
 
       <section id="limits">
         <h2>Rate limits</h2>
-        <p>Per-IP on the hosted deployment. There is <b>no paid tier</b> — need more headroom? Self-host and tune the env vars (set any to <code>0</code> to disable that window).</p>
+        <p>Per-IP on the hosted deployment. There is <b>no paid tier</b> — need more headroom? Self-host and tune the env vars (set any to <code>0</code> to disable that window). The daily budget is metered in <b>elements</b> (elements&nbsp;=&nbsp;origins&nbsp;×&nbsp;destinations — the <a href="https://developers.google.com/maps/documentation/distance-matrix/usage-and-billing">same definition Google uses</a>), so it tracks serving cost; the per-second tier is a request burst guard.</p>
         <table class="tbl">
           <thead><tr><th>Window</th><th>Limit</th><th>Env var</th></tr></thead>
           <tbody>
-            <tr><td>Second</td><td><b>${fmtNum(cfg.perSec)}</b></td><td class="k">RL_PER_SEC</td></tr>
-            <tr><td>Hour</td><td><b>${fmtNum(cfg.perHour)}</b></td><td class="k">RL_PER_HOUR</td></tr>
-            <tr><td>Day</td><td><b>${fmtNum(cfg.perDay)}</b></td><td class="k">RL_PER_DAY</td></tr>
+            <tr><td>Second (burst)</td><td><b>${fmtNum(cfg.perSec)}</b> requests</td><td class="k">RL_PER_SEC</td></tr>
+            <tr><td>Day</td><td><b>${fmtNum(cfg.perDay)}</b> elements</td><td class="k">RL_ELEMENTS_PER_DAY</td></tr>
           </tbody>
         </table>
-        <div class="note"><span class="ico">!</span><p>${cfg.globalDaily > 0 ? `On top of the per-IP limits there's an <b>account-wide cap of ${fmtNum(cfg.globalDaily)} requests/day</b> (resets at <code>00:00&nbsp;UTC</code>). If the whole service hits it you'll get HTTP <code>503</code> with a <code>Retry-After</code> header — not a <code>429</code>.` : `There is no account-wide daily cap on this deployment.`}${cfg.contactEmail ? ` Need higher or dedicated limits? Email <a href="mailto:${cfg.contactEmail}">${cfg.contactEmail}</a> for custom solutions.` : ""}</p></div>
+        <div class="note"><span class="ico">!</span><p>${cfg.globalDaily > 0 ? `On top of the per-IP limits there's an <b>account-wide cap of ${fmtNum(cfg.globalDaily)} elements/day</b> (resets at <code>00:00&nbsp;UTC</code>). If the whole service hits it you'll get HTTP <code>503</code> with a <code>Retry-After</code> header — not a <code>429</code>.` : `There is no account-wide daily cap on this deployment.`}${cfg.contactEmail ? ` Need higher or dedicated limits? Email <a href="mailto:${cfg.contactEmail}">${cfg.contactEmail}</a> for custom solutions.` : ""}</p></div>
         <h3>Self-throttle headers</h3>
-        <p>Every response — <code>200</code> and <code>429</code> alike — carries limit headers so you can back off without an extra probe.</p>
+        <p>Every response — <code>200</code> and <code>429</code> alike — carries limit headers so you can back off without an extra probe. The <code>-Day</code> values are <b>element</b> budgets.</p>
         <div class="code">
           <div class="cap">response headers <button class="cp" type="button">Copy</button></div>
           <pre><span class="key">X-RateLimit-Limit-Second</span><span class="pun">:</span>     <span class="num">${cfg.perSec}</span>
 <span class="key">X-RateLimit-Remaining-Second</span><span class="pun">:</span> <span class="num">${Math.max(0, cfg.perSec - 1)}</span>
-<span class="key">X-RateLimit-Remaining-Hour</span><span class="pun">:</span>   <span class="num">${Math.max(0, cfg.perHour - 1)}</span>
-<span class="key">X-RateLimit-Remaining-Day</span><span class="pun">:</span>    <span class="num">${Math.max(0, cfg.perDay - 2)}</span>
-<span class="cmt"># on 429:</span> <span class="key">Retry-After</span><span class="pun">,</span> <span class="key">X-RateLimit-Tier</span><span class="pun">:</span> <span class="str">sec | hour | day</span></pre>
+<span class="key">X-RateLimit-Limit-Day</span><span class="pun">:</span>        <span class="num">${cfg.perDay}</span> <span class="cmt"># elements</span>
+<span class="key">X-RateLimit-Remaining-Day</span><span class="pun">:</span>    <span class="num">${Math.max(0, cfg.perDay - 1)}</span> <span class="cmt"># elements left today</span>
+<span class="cmt"># on 429:</span> <span class="key">Retry-After</span><span class="pun">,</span> <span class="key">X-RateLimit-Tier</span><span class="pun">:</span> <span class="str">sec | day</span></pre>
         </div>
       </section>
 

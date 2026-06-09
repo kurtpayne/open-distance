@@ -47,10 +47,12 @@ export function readMaxElements(env: { [k: string]: unknown }): number {
 // once and threaded into the site renderers so a forker's pages show their own
 // numbers + contact address (or none) instead of the maintainer's.
 export interface SiteConfig {
+  // Per-IP requests/second (burst guard).
   perSec: number;
-  perHour: number;
+  // Per-IP elements/day (cost budget; elements = origins × destinations).
   perDay: number;
-  globalDaily: number; // account-wide/day; 0 = disabled
+  // Account-wide elements/day; 0 = disabled.
+  globalDaily: number;
   maxElements: number;
   // Contact email, or "" when CONTACT_EMAIL is explicitly blank (CTA suppressed).
   contactEmail: string;
@@ -58,15 +60,14 @@ export interface SiteConfig {
 
 // Build the SiteConfig from env. Pulls the per-IP tiers (readLimitsFromEnv) and
 // global cap (readGlobalLimitFromEnv) from their owning modules so there's one
-// source of truth per knob.
+// source of truth per knob. `perDay`/`globalDaily` are ELEMENT budgets.
 export function resolveSiteConfig(
   env: { [k: string]: unknown },
-  limits: { perSec: number; perHour: number; perDay: number },
+  limits: { perSec: number; perDay: number },
   globalDaily: number,
 ): SiteConfig {
   return {
     perSec: limits.perSec,
-    perHour: limits.perHour,
     perDay: limits.perDay,
     globalDaily,
     maxElements: readMaxElements(env),

@@ -4,6 +4,7 @@ import {
   healthCheck,
   handleCoverage,
 } from "./distancematrix";
+import { countElements } from "./elements";
 import { renderIndex, renderDocs, renderPrivacy, renderAttribution, htmlHeaders } from "./site";
 import {
   rateLimitHeaders,
@@ -13,7 +14,7 @@ import {
   RateLimitResult,
 } from "./ratelimit";
 import { GlobalLimitResult, readGlobalLimitFromEnv } from "./global_limiter_do";
-import { readContactEmail, contactCta, resolveSiteConfig } from "./config";
+import { readContactEmail, contactCta, resolveSiteConfig, readMaxElements } from "./config";
 
 export { L1Router } from "./l1_router";
 export { RateLimiter } from "./ratelimiter_do";
@@ -31,7 +32,7 @@ type Env = BaseEnv & {
 // before dispatch so any custom client headers won't get blocked.
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
-  "access-control-expose-headers": "x-od-router-impl, x-od-router-settled, x-od-router-tiles, x-ratelimit-limit-second, x-ratelimit-remaining-second, x-ratelimit-remaining-hour, x-ratelimit-remaining-day, x-ratelimit-tier, retry-after",
+  "access-control-expose-headers": "x-od-router-impl, x-od-router-settled, x-od-router-tiles, x-ratelimit-limit-second, x-ratelimit-remaining-second, x-ratelimit-remaining-day, x-ratelimit-tier, retry-after",
   "vary": "Origin",
 };
 
@@ -51,7 +52,8 @@ function globalLimitResponse(gl: GlobalLimitResult, cta = ""): Response {
   const body = {
     status: "OVER_QUERY_LIMIT",
     error_message:
-      `Service is at its daily request cap (${gl.limit}/day). ` +
+      `Service is at its daily element cap (${gl.limit} elements/day, ` +
+      `elements = origins × destinations). ` +
       `It resets at 00:00 UTC.` +
       (cta ? ` Need higher or dedicated limits?${cta}` : ""),
     rows: [],
@@ -168,32 +170,63 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     }
     if (url.pathname === "/coverage") return handleCoverage(env, req);
     if (url.pathname === "/maps/api/distancematrix/json") {
-      // DurableObject-backed per-IP rate limiter. Default 5/sec, 100/hour,
-      // 1000/day per IP. Self-hosters can tune via RL_PER_SEC / RL_PER_HOUR /
-      // RL_PER_DAY env vars, or set any to 0 to disable that tier. Set all
-      // three to 0 for an unlimited deployment (private fork inside a trusted
-      // network, for example). One DO instance per IP holds the counters in
-      // memory -- ~100x cheaper than the old KV path's 3 writes/request.
-      const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
+      // Hybrid DurableObject-backed rate limiting. The per-second tier is a
+      // request burst guard (5/sec default, charged 1 per request); the per-IP
+      // daily tier and the account-wide global cap are ELEMENT budgets (2,500
+      // and 25,000 elements/day; elements = origins × destinations) charged the
+      // request's element count. Self-hosters tune via RL_PER_SEC /
+      // RL_ELEMENTS_PER_DAY / GLOBAL_ELEMENTS_PER_DAY (each falls back to its
+      // legacy key; 0 disables that tier/cap). One DO instance per IP holds the
+      // per-IP counters; one shared DO holds the global counter -- ~100x cheaper
+      // than the old KV path.
       const envR = env as unknown as Record<string, unknown>;
       const limits = readLimitsFromEnv(envR);
       // Contact CTA appended to rejection messages. Sourced from CONTACT_EMAIL
       // (default hello@open-distance.com); "" suppresses the CTA for a forker.
       const cta = contactCta(readContactEmail(envR));
+
+      // Count the elements this request would charge, using the same pipe-split
+      // semantics handleDistanceMatrix applies. Malformed/missing params -> 0
+      // (we skip the element charge but still apply the per-second burst, then
+      // let handleDistanceMatrix return INVALID_REQUEST).
+      const elements = countElements(url);
+
+      // Reject oversize requests BEFORE charging any budget. A request over the
+      // per-request element cap never touches the per-IP daily or global budget.
+      // Reject before charging any budget, but return HTTP 200 with the
+      // legacy MAX_ELEMENTS_EXCEEDED status in the body — same as
+      // handleDistanceMatrix and the legacy Distance Matrix wire format
+      // (query-level errors ride in the JSON status, not the HTTP status).
+      // Charged to nobody.
+      const maxElements = readMaxElements(envR);
+      if (elements > maxElements) {
+        return new Response(JSON.stringify({
+          status: "MAX_ELEMENTS_EXCEEDED",
+          error_message: `Max ${maxElements} elements (origins × destinations) per request.${cta}`,
+          rows: [], origin_addresses: [], destination_addresses: [],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json; charset=UTF-8", "cache-control": "no-store" },
+        });
+      }
+
+      const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
       // RL_SALT can be set as a Worker secret for production. Rotating it
       // severs linkability of the per-IP DO names. If unset, defaults to a
       // build-time constant -- still privacy-preserving because the raw IP is
       // never stored, only its salted hash (used as the DO instance name).
       const salt = String(envR.RL_SALT ?? "od-default-salt-rotate-me");
-      // Fail OPEN: a limiter error must never take the API down. Any throw
-      // (DO unavailable, bad response) leaves `rl` null and we skip the gate.
+      // Per-IP check (per-second burst charges 1, per-day budget charges
+      // `elements`). Fail OPEN: a limiter error must never take the API down.
+      // Any throw (DO unavailable, bad response) leaves `rl` null and we skip
+      // the gate.
       let rl: RateLimitResult | null = null;
       try {
         const id = env.RATE_LIMITER.idFromName(await hashIp(salt, ip));
         const stub = env.RATE_LIMITER.get(id);
         const resp = await stub.fetch("https://rl/check", {
           method: "POST",
-          body: JSON.stringify({}),
+          body: JSON.stringify({ elements }),
         });
         rl = (await resp.json()) as RateLimitResult;
       } catch {
@@ -201,20 +234,20 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       }
       if (rl && !rl.ok) return rateLimitResponse(rl, limits, cta);
 
-      // Account-wide hard daily cap. Checked AFTER the per-IP gate passes so a
-      // single abuser is bounced with 429 and never burns the global budget --
-      // only per-IP-admitted requests count toward the global cap. One shared
-      // DO instance (idFromName("global")) holds the per-UTC-day counter in
-      // memory; trips at GLOBAL_DAILY_LIMIT (default 25k, 0 disables). Fail
-      // OPEN: any throw leaves `gl` null and we let the request through -- a
-      // limiter fault must never take the API down.
+      // Account-wide hard daily ELEMENT cap. Checked AFTER the per-IP gate passes
+      // so a single abuser is bounced with 429 and never burns the global budget
+      // -- only per-IP-admitted requests count toward the global cap. One shared
+      // DO instance (idFromName("global")) holds the per-UTC-day element counter
+      // in memory; trips at GLOBAL_ELEMENTS_PER_DAY (default 25k elements, 0
+      // disables). Fail OPEN: any throw leaves `gl` null and we let the request
+      // through -- a limiter fault must never take the API down.
       let gl: GlobalLimitResult | null = null;
       try {
         const gid = env.GLOBAL_LIMITER.idFromName("global");
         const gstub = env.GLOBAL_LIMITER.get(gid);
         const gresp = await gstub.fetch("https://gl/check", {
           method: "POST",
-          body: JSON.stringify({}),
+          body: JSON.stringify({ elements }),
         });
         gl = (await gresp.json()) as GlobalLimitResult;
       } catch {
@@ -354,14 +387,15 @@ coords       = caller supplied "lat,lng" directly
 
 ## Rate limits
 
-Per-IP, DurableObject-backed. There is no paid tier.
+Per-IP, DurableObject-backed. There is no paid tier. The daily budget is metered
+in ELEMENTS (elements = origins × destinations), not requests, so the cap tracks
+serving cost; the per-second tier is a request burst guard.
 
-- ${siteCfg.perSec.toLocaleString("en-US")} requests per second
-- ${siteCfg.perHour.toLocaleString("en-US")} requests per hour
-- ${siteCfg.perDay.toLocaleString("en-US")} requests per day
+- ${siteCfg.perSec.toLocaleString("en-US")} requests per second (burst)
+- ${siteCfg.perDay.toLocaleString("en-US")} elements per day per IP
 
 ${siteCfg.globalDaily > 0
-  ? `On top of the per-IP tiers, an account-wide cap of ${siteCfg.globalDaily.toLocaleString("en-US")} requests/day
+  ? `On top of the per-IP tiers, an account-wide cap of ${siteCfg.globalDaily.toLocaleString("en-US")} elements/day
 (resets at 00:00 UTC) bounds total serving cost. When it's hit the API
 returns HTTP 503 + Retry-After (not 429).`
   : `There is no account-wide daily cap on this deployment.`}${siteCfg.contactEmail
@@ -369,10 +403,10 @@ returns HTTP 503 + Retry-After (not 429).`
 Email ${siteCfg.contactEmail} for custom solutions.`
   : ""}
 
-Every response carries headers: X-RateLimit-Limit-Second / -Hour / -Day,
-X-RateLimit-Remaining-Second / -Hour / -Day, X-RateLimit-Reset-Second /
--Hour / -Day, plus the IETF draft RateLimit-Limit / -Remaining / -Reset
-reflecting the tightest currently-binding tier.
+Every response carries headers: X-RateLimit-Limit-Second / -Day,
+X-RateLimit-Remaining-Second / -Day, X-RateLimit-Reset-Second / -Day
+(the -Day values are element budgets), plus the IETF draft RateLimit-Limit /
+-Remaining / -Reset reflecting the tightest currently-binding tier.
 
 Over the limit returns HTTP 429 with status=OVER_QUERY_LIMIT and a
 Retry-After header. If you need higher limits, fork and self-host on

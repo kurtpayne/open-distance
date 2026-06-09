@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Element-metered rate limits (hybrid).** The cost-bounding daily caps are now
+  metered in **elements** (elements = origins × destinations) instead of raw
+  requests, so they track actual serving cost. The per-second tier is unchanged
+  (a request burst guard, charged 1/request). Per-IP daily: **2,500
+  elements/day** (was 1,000 requests/day), env var `RL_ELEMENTS_PER_DAY`
+  (falls back to legacy `RL_PER_DAY`). Global daily: **25,000 elements/day**,
+  env var `GLOBAL_ELEMENTS_PER_DAY` (falls back to legacy `GLOBAL_DAILY_LIMIT`).
+  The per-hour tier (`RL_PER_HOUR`) is **removed**. A `5×5` request now charges
+  25 to the daily + global element budgets and 1 to the per-second burst.
+  `X-RateLimit-*-Day` header values + the `429`/`503` messages now report
+  element budgets. Oversize requests (`> MAX_ELEMENTS`) are rejected before any
+  budget is charged.
 - **Matrix cap lowered to 25 elements** (5×5) per request (was 100); over the
   cap still returns `MAX_ELEMENTS_EXCEEDED`.
 - **Account-wide global daily cap**: a single `GlobalLimiter` DurableObject
