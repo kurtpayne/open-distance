@@ -5,6 +5,13 @@ account_id = "__CF_ACCOUNT_ID__"
 
 [vars]
 DATA_VERSION = "2026-06"
+# --- Operator-tunable knobs (self-hosters: change config here, not code) ------
+RL_PER_SEC = "5"                              # per-IP requests/second; 0 disables this tier
+RL_PER_HOUR = "100"                           # per-IP requests/hour; 0 disables this tier
+RL_PER_DAY = "1000"                           # per-IP requests/day; 0 disables this tier
+GLOBAL_DAILY_LIMIT = "25000"                  # account-wide/day; 0 disables
+MAX_ELEMENTS = "25"                           # max origins×destinations per request
+CONTACT_EMAIL = "hello@open-distance.com"     # "" to omit the contact CTA
 
 [[r2_buckets]]
 binding = "GRAPH"

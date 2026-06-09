@@ -150,6 +150,27 @@ format, plus two extra arrays surfacing geocode confidence:
   element are returned with `Cache-Control: no-store` so a subsequent data
   refresh can deliver the recovery cleanly.
 
+## Configuration
+
+Every operator-tunable knob is a `[vars]` entry in `wrangler.toml` (also in
+`wrangler.toml.template`), read from the Worker env at request time. **To
+customize a self-hosted deployment, edit `wrangler.toml [vars]` — no code
+changes needed.** Cloudflare delivers these as strings; the Worker parses them.
+
+| Var                  | Default                  | Meaning |
+|----------------------|--------------------------|---------|
+| `RL_PER_SEC`         | `5`                      | Per-IP requests per second; `0` disables this tier |
+| `RL_PER_HOUR`        | `100`                    | Per-IP requests per hour; `0` disables this tier |
+| `RL_PER_DAY`         | `1000`                   | Per-IP requests per day; `0` disables this tier |
+| `GLOBAL_DAILY_LIMIT` | `25000`                  | Account-wide admitted requests per UTC day; `0` disables the cap |
+| `MAX_ELEMENTS`       | `25`                     | Max `origins × destinations` elements per request (floored at 1) |
+| `CONTACT_EMAIL`      | `hello@open-distance.com`| Contact address shown in rejection messages + on the site; set to `""` to omit the contact call-to-action entirely |
+
+Setting all three `RL_PER_*` to `0` yields an unlimited per-IP deployment (e.g.
+a private fork inside a trusted network). The rendered site (`/`, `/docs`) and
+the machine-readable `/llms.txt` reflect these values at request time, so a fork
+shows its own limits and contact address rather than the upstream defaults.
+
 ## Rate limits and response headers
 
 Per-IP rate limits on the hosted deployment:

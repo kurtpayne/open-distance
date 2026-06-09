@@ -177,7 +177,10 @@ export function rateLimitHeaders(tiers: TierState[]): Record<string, string> {
   return h;
 }
 
-export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig): Response {
+// `cta` is the contact call-to-action sentence (built via contactCta in
+// src/config.ts) appended to the error message. Pass "" to omit it -- callers
+// read CONTACT_EMAIL from env so the contact address is config, not code.
+export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig, cta = ""): Response {
   const tierLimit = result.limitName === "sec" ? cfg.perSec
                   : result.limitName === "hour" ? cfg.perHour
                   : cfg.perDay;
@@ -189,8 +192,8 @@ export function rateLimitResponse(result: RateLimitResult, cfg: RateLimitConfig)
     error_message:
       `Rate limit exceeded: ${tierLimit} requests per ${tierWindow} per IP. ` +
       `Try again in ${result.retryAfter ?? 60} second(s). ` +
-      `No paid tier -- self-host with your own limits: https://github.com/kurtpayne/open-distance. ` +
-      `Contact hello@open-distance.com for custom solutions.`,
+      `No paid tier -- self-host with your own limits: https://github.com/kurtpayne/open-distance.` +
+      cta,
     rows: [],
     origin_addresses: [],
     destination_addresses: [],

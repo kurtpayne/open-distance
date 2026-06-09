@@ -13,6 +13,7 @@ import {
   RateLimitResult,
 } from "./ratelimit";
 import { GlobalLimitResult } from "./global_limiter_do";
+import { readContactEmail, contactCta } from "./config";
 
 export { L1Router } from "./l1_router";
 export { RateLimiter } from "./ratelimiter_do";
@@ -43,13 +44,16 @@ function withCors(resp: Response): Response {
 // 503 returned when the account-wide global daily cap is hit. Mirrors the
 // Distance Matrix shape of rateLimitResponse (empty rows/addresses) so existing
 // clients parse it, but uses HTTP 503 + Retry-After (seconds to UTC midnight).
-function globalLimitResponse(gl: GlobalLimitResult): Response {
+// `cta` is the contact call-to-action sentence (built via contactCta in
+// src/config.ts) appended to the message. Pass "" to omit it -- the caller reads
+// CONTACT_EMAIL from env so the contact address is config, not code.
+function globalLimitResponse(gl: GlobalLimitResult, cta = ""): Response {
   const body = {
     status: "OVER_QUERY_LIMIT",
     error_message:
       `Service is at its daily request cap (${gl.limit}/day). ` +
-      `It resets at 00:00 UTC. ` +
-      `Need higher or dedicated limits? Contact hello@open-distance.com for custom solutions.`,
+      `It resets at 00:00 UTC.` +
+      (cta ? ` Need higher or dedicated limits?${cta}` : ""),
     rows: [],
     origin_addresses: [],
     destination_addresses: [],
@@ -173,6 +177,9 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       const ip = req.headers.get("cf-connecting-ip") || "0.0.0.0";
       const envR = env as unknown as Record<string, unknown>;
       const limits = readLimitsFromEnv(envR);
+      // Contact CTA appended to rejection messages. Sourced from CONTACT_EMAIL
+      // (default hello@open-distance.com); "" suppresses the CTA for a forker.
+      const cta = contactCta(readContactEmail(envR));
       // RL_SALT can be set as a Worker secret for production. Rotating it
       // severs linkability of the per-IP DO names. If unset, defaults to a
       // build-time constant -- still privacy-preserving because the raw IP is
@@ -192,7 +199,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       } catch {
         rl = null;
       }
-      if (rl && !rl.ok) return rateLimitResponse(rl, limits);
+      if (rl && !rl.ok) return rateLimitResponse(rl, limits, cta);
 
       // Account-wide hard daily cap. Checked AFTER the per-IP gate passes so a
       // single abuser is bounced with 429 and never burns the global budget --
@@ -213,7 +220,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
       } catch {
         gl = null;
       }
-      if (gl && !gl.ok) return globalLimitResponse(gl);
+      if (gl && !gl.ok) return globalLimitResponse(gl, cta);
 
       const resp = await handleDistanceMatrix(url, env);
       // Mirror the rate-limit state back to the caller on every successful

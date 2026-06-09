@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeTiers, evaluateTiers, tierResetIn } from "./ratelimit.ts";
+import { computeTiers, evaluateTiers, tierResetIn, rateLimitResponse } from "./ratelimit.ts";
+import type { RateLimitResult } from "./ratelimit.ts";
 import { RateLimiter } from "./ratelimiter_do.ts";
+import { contactCta } from "./config.ts";
 
 const CFG = { perSec: 5, perHour: 100, perDay: 1000 };
 
@@ -111,4 +113,35 @@ test("RateLimiter.check does not increment counters on a blocked request", () =>
   assert.equal(b.ok, false);
   assert.equal(a.currentCount, 5);
   assert.equal(b.currentCount, 5);
+});
+
+// --- rateLimitResponse contact CTA -----------------------------------------
+
+const BLOCKED: RateLimitResult = {
+  ok: false,
+  tiers: [{ name: "sec", limit: 5, used: 5, remaining: 0, resetIn: 1 }],
+  retryAfter: 1,
+  limitName: "sec",
+  currentCount: 5,
+};
+
+test("rateLimitResponse appends the contact CTA when one is provided", async () => {
+  const cta = contactCta("hello@open-distance.com");
+  const resp = rateLimitResponse(BLOCKED, CFG, cta);
+  assert.equal(resp.status, 429);
+  const body = (await resp.json()) as { error_message: string };
+  assert.match(body.error_message, /Contact hello@open-distance\.com for custom solutions\./);
+});
+
+test("rateLimitResponse omits the CTA (and any email) when cta is empty", async () => {
+  const resp = rateLimitResponse(BLOCKED, CFG, "");
+  const body = (await resp.json()) as { error_message: string };
+  assert.doesNotMatch(body.error_message, /Contact/);
+  assert.doesNotMatch(body.error_message, /@/);
+});
+
+test("rateLimitResponse cta defaults to empty (no email) when the arg is omitted", async () => {
+  const resp = rateLimitResponse(BLOCKED, CFG);
+  const body = (await resp.json()) as { error_message: string };
+  assert.doesNotMatch(body.error_message, /@/);
 });
