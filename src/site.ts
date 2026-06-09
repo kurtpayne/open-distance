@@ -1040,7 +1040,7 @@ ${TOP_BAR_HOME}
           <div id="singleView">
             <div class="fields">
               <label class="field"><span class="pin"></span><input id="origin" value="Austin, TX" autocomplete="off" spellcheck="false" aria-label="Origin"></label>
-              <div class="leg"><span>↓ 1 origin → 1 destination &nbsp;·&nbsp; switch to <b style="color:var(--ink2)">Matrix</b> for up to 100 pairs in one call</span></div>
+              <div class="leg"><span>↓ 1 origin → 1 destination &nbsp;·&nbsp; switch to <b style="color:var(--ink2)">Matrix</b> for up to 25 pairs in one call</span></div>
               <label class="field"><span class="pin b"></span><input id="dest" value="Dallas, TX" autocomplete="off" spellcheck="false" aria-label="Destination"></label>
             </div>
             <div class="chips" id="examples">
