@@ -11,8 +11,16 @@
 // times during this short window" -- no IPs, no addresses.
 //
 // Three tiers (per-second / per-hour / per-day); a request is blocked when
-// any tier is over its limit. Defaults 25/sec, 500/hour, 10000/day per IP.
+// any tier is over its limit. Defaults 5/sec, 100/hour, 1000/day per IP.
 // Tunable via env vars RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY (0 disables).
+//
+// COST NOTE: these defaults are deliberately conservative to cap KV/D1 usage.
+// Each request costs ~3 KV writes (rate-limit increments) + up to ~100 KV
+// writes (leg cache, cold) + up to ~49 D1 reads (geocode shard fan-out). KV
+// writes bill at $5/M (only 1k/day free) and are the real cost lever, so the
+// per-IP ceiling bounds what a single client can run up. Per-IP limits do NOT
+// cap GLOBAL spend — pair these with a Cloudflare billing alert. Raise via env
+// for a trusted/private fork.
 //
 // Every response (both allowed and 429) carries headers:
 //   X-RateLimit-Limit-{Second,Hour,Day}      = configured limit for that tier
@@ -29,9 +37,9 @@ export interface RateLimitConfig {
 }
 
 export const DEFAULT_LIMITS: RateLimitConfig = {
-  perSec: 25,
-  perHour: 500,
-  perDay: 10_000,
+  perSec: 5,
+  perHour: 100,
+  perDay: 1_000,
 };
 
 export type TierName = "sec" | "hour" | "day";
