@@ -6,11 +6,10 @@ account_id = "__CF_ACCOUNT_ID__"
 [vars]
 DATA_VERSION = "2026-06"
 # --- Operator-tunable knobs (self-hosters: change config here, not code) ------
-RL_PER_SEC = "5"                              # per-IP requests/second; 0 disables this tier
-RL_PER_HOUR = "100"                           # per-IP requests/hour; 0 disables this tier
-RL_PER_DAY = "1000"                           # per-IP requests/day; 0 disables this tier
-GLOBAL_DAILY_LIMIT = "25000"                  # account-wide/day; 0 disables
-MAX_ELEMENTS = "25"                           # max origins×destinations per request
+RL_PER_SEC = "5"                              # per-IP requests/second (burst guard, charged 1/req); 0 disables
+RL_ELEMENTS_PER_DAY = "2500"                  # per-IP elements/day (elements = origins×destinations); falls back to legacy RL_PER_DAY; 0 disables
+GLOBAL_ELEMENTS_PER_DAY = "25000"             # account-wide elements/day; falls back to legacy GLOBAL_DAILY_LIMIT; 0 disables
+MAX_ELEMENTS = "25"                           # max origins×destinations per request (rejected before any charge)
 CONTACT_EMAIL = "hello@open-distance.com"     # "" to omit the contact CTA
 
 [[r2_buckets]]
@@ -39,15 +38,15 @@ name = "L1_ROUTER"
 class_name = "L1Router"
 
 # Per-IP rate limiter (DurableObject). One instance per client IP holds the
-# sec/hour/day counters in memory; ~100x cheaper than the old KV path's 3
-# writes/request. Counters are in-memory only (eviction = reset = fail open).
+# per-second (requests) + per-day (elements) counters in memory; ~100x cheaper
+# than the old KV path. Counters are in-memory only (eviction = reset = fail open).
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiter"
 
-# Account-wide global daily request cap (DurableObject). A single shared
-# instance (idFromName("global")) holds an in-memory per-UTC-day counter and
-# trips at GLOBAL_DAILY_LIMIT (default 25k, 0 disables) to bound total serving
+# Account-wide global daily element cap (DurableObject). A single shared
+# instance (idFromName("global")) holds an in-memory per-UTC-day element counter and
+# trips at GLOBAL_ELEMENTS_PER_DAY (default 25k elements, 0 disables) to bound total serving
 # cost. In-memory only (eviction = reset = fail open), like RATE_LIMITER.
 [[durable_objects.bindings]]
 name = "GLOBAL_LIMITER"
