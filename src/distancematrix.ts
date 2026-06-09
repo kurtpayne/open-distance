@@ -8,6 +8,12 @@ import { formatDistance, formatDuration, Units } from "./format";
 import { haversineMeters } from "./geo";
 import { STATE_CODES } from "./state_parser";
 import { readMaxElements, readContactEmail, contactCta } from "./config";
+import { splitMulti, countElements } from "./elements";
+
+// Re-exported so existing importers (index.ts) can pull the element counter from
+// the handler module; the implementation lives in elements.ts (dependency-free,
+// so the rate limiter can share the exact pipe-split semantics).
+export { countElements };
 
 // Number of snap candidates to keep per endpoint. Lets the router fall back to
 // the next-nearest node when the first one is on an isolated graph fragment
@@ -32,11 +38,6 @@ interface Element {
   status: "OK" | "NOT_FOUND" | "ZERO_RESULTS";
   distance?: { text: string; value: number };
   duration?: { text: string; value: number };
-}
-
-function splitMulti(v: string | null): string[] {
-  if (!v) return [];
-  return v.split("|").map(s => s.trim()).filter(Boolean);
 }
 
 function jsonResponse(body: unknown, status = 200, cacheControl?: string): Response {
