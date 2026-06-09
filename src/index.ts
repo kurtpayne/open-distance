@@ -129,7 +129,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     }
     if (url.pathname === "/coverage") return handleCoverage(env, req);
     if (url.pathname === "/maps/api/distancematrix/json") {
-      // KV-backed per-IP rate limiter. Default 25/sec, 500/hour, 10k/day per
+      // KV-backed per-IP rate limiter. Default 5/sec, 100/hour, 1000/day per
       // IP. Self-hosters can tune via RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY
       // env vars, or set any to 0 to disable that tier. Set all three to 0
       // for an unlimited deployment (private fork inside a trusted network,
