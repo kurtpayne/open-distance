@@ -154,11 +154,11 @@ format, plus two extra arrays surfacing geocode confidence:
 
 Per-IP rate limits on the hosted deployment:
 
-| Window  | Limit  | Env var       |
-|---------|--------|---------------|
-| Second  | 25     | `RL_PER_SEC`  |
-| Hour    | 500    | `RL_PER_HOUR` |
-| Day     | 10,000 | `RL_PER_DAY`  |
+| Window  | Limit | Env var       |
+|---------|-------|---------------|
+| Second  | 5     | `RL_PER_SEC`  |
+| Hour    | 100   | `RL_PER_HOUR` |
+| Day     | 1,000 | `RL_PER_DAY`  |
 
 **There is no paid tier.** The hosted instance is a free shared resource for
 casual use. If you need higher limits, self-host on your own Cloudflare

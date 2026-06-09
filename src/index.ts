@@ -340,9 +340,14 @@ coords       = caller supplied "lat,lng" directly
 
 Per-IP, DurableObject-backed. There is no paid tier.
 
-- 25 requests per second
-- 500 requests per hour
-- 10,000 requests per day
+- 5 requests per second
+- 100 requests per hour
+- 1,000 requests per day
+
+On top of the per-IP tiers, an account-wide cap of 25,000 requests/day
+(resets at 00:00 UTC) bounds total serving cost. When it's hit the API
+returns HTTP 503 + Retry-After (not 429). Need higher or dedicated limits?
+Email hello@open-distance.com for custom solutions.
 
 Every response carries headers: X-RateLimit-Limit-Second / -Hour / -Day,
 X-RateLimit-Remaining-Second / -Hour / -Day, X-RateLimit-Reset-Second /

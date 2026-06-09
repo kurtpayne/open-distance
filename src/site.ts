@@ -702,7 +702,7 @@ const HOME_JS = `
   // ---- FAQ ----
   var FAQ = {
     'Can do': [
-      ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (25/sec, 500/hour, 10k/day). Forks that want private auth can re-add it.'],
+      ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (5/sec, 100/hour, 1000/day), plus an account-wide daily cap. Forks that want private auth can re-add it.'],
       ['Can I drop it in where a commercial distance matrix was?','Mostly, yes. The JSON is byte-compatible with the legacy distance-matrix shape, so old clients keep parsing it. It adds a few fields (<code>*_matches</code>, <code>data_version</code>, <code>copyrights</code>) that old clients simply ignore.'],
       ['How big a matrix can I request?','Up to <code>25</code> elements — origins × destinations — in a single call.'],
       ['Do cross-country routes work?','Yes. NYC↔LA, Seattle↔Miami, Boston↔Houston — anything in the lower 48 + DC. Long-haul queries route through a national highway overlay.'],
@@ -1300,7 +1300,7 @@ ${topBarOther("/docs")}
             <tr><td class="k">OK</td><td>Request valid; see per-element statuses.</td></tr>
             <tr><td class="k">INVALID_REQUEST</td><td>Missing or malformed parameters.</td></tr>
             <tr><td class="k">MAX_ELEMENTS_EXCEEDED</td><td>origins × destinations &gt; 25.</td></tr>
-            <tr><td class="k">OVER_QUERY_LIMIT</td><td>Rate limit hit — returned with HTTP <code>429</code>.</td></tr>
+            <tr><td class="k">OVER_QUERY_LIMIT</td><td>Per-IP rate limit hit (HTTP <code>429</code>), or the account-wide daily cap hit (HTTP <code>503</code> + <code>Retry-After</code>).</td></tr>
             <tr><td class="k">REQUEST_DENIED</td><td>Request refused.</td></tr>
           </tbody>
         </table>
@@ -1321,19 +1321,20 @@ ${topBarOther("/docs")}
         <table class="tbl">
           <thead><tr><th>Window</th><th>Limit</th><th>Env var</th></tr></thead>
           <tbody>
-            <tr><td>Second</td><td><b>25</b></td><td class="k">RL_PER_SEC</td></tr>
-            <tr><td>Hour</td><td><b>500</b></td><td class="k">RL_PER_HOUR</td></tr>
-            <tr><td>Day</td><td><b>10,000</b></td><td class="k">RL_PER_DAY</td></tr>
+            <tr><td>Second</td><td><b>5</b></td><td class="k">RL_PER_SEC</td></tr>
+            <tr><td>Hour</td><td><b>100</b></td><td class="k">RL_PER_HOUR</td></tr>
+            <tr><td>Day</td><td><b>1,000</b></td><td class="k">RL_PER_DAY</td></tr>
           </tbody>
         </table>
+        <div class="note"><span class="ico">!</span><p>On top of the per-IP limits there's an <b>account-wide cap of 25,000 requests/day</b> (resets at <code>00:00&nbsp;UTC</code>). If the whole service hits it you'll get HTTP <code>503</code> with a <code>Retry-After</code> header — not a <code>429</code>. Need higher or dedicated limits? Email <a href="mailto:hello@open-distance.com">hello@open-distance.com</a> for custom solutions.</p></div>
         <h3>Self-throttle headers</h3>
         <p>Every response — <code>200</code> and <code>429</code> alike — carries limit headers so you can back off without an extra probe.</p>
         <div class="code">
           <div class="cap">response headers <button class="cp" type="button">Copy</button></div>
-          <pre><span class="key">X-RateLimit-Limit-Second</span><span class="pun">:</span>     <span class="num">25</span>
-<span class="key">X-RateLimit-Remaining-Second</span><span class="pun">:</span> <span class="num">24</span>
-<span class="key">X-RateLimit-Remaining-Hour</span><span class="pun">:</span>   <span class="num">498</span>
-<span class="key">X-RateLimit-Remaining-Day</span><span class="pun">:</span>    <span class="num">9981</span>
+          <pre><span class="key">X-RateLimit-Limit-Second</span><span class="pun">:</span>     <span class="num">5</span>
+<span class="key">X-RateLimit-Remaining-Second</span><span class="pun">:</span> <span class="num">4</span>
+<span class="key">X-RateLimit-Remaining-Hour</span><span class="pun">:</span>   <span class="num">99</span>
+<span class="key">X-RateLimit-Remaining-Day</span><span class="pun">:</span>    <span class="num">998</span>
 <span class="cmt"># on 429:</span> <span class="key">Retry-After</span><span class="pun">,</span> <span class="key">X-RateLimit-Tier</span><span class="pun">:</span> <span class="str">sec | hour | day</span></pre>
         </div>
       </section>
