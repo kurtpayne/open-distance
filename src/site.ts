@@ -704,7 +704,7 @@ const HOME_JS = `
     'Can do': [
       ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (25/sec, 500/hour, 10k/day). Forks that want private auth can re-add it.'],
       ['Can I drop it in where a commercial distance matrix was?','Mostly, yes. The JSON is byte-compatible with the legacy distance-matrix shape, so old clients keep parsing it. It adds a few fields (<code>*_matches</code>, <code>data_version</code>, <code>copyrights</code>) that old clients simply ignore.'],
-      ['How big a matrix can I request?','Up to <code>100</code> elements — origins × destinations — in a single call.'],
+      ['How big a matrix can I request?','Up to <code>25</code> elements — origins × destinations — in a single call.'],
       ['Do cross-country routes work?','Yes. NYC↔LA, Seattle↔Miami, Boston↔Houston — anything in the lower 48 + DC. Long-haul queries route through a national highway overlay.'],
       ['Can I host my own?','Yes — that\\u2019s the point. Fork it and deploy to your own edge account for less than $10/month for the whole continental US. Tune or disable the rate limits with env vars.']
     ],
@@ -1144,7 +1144,7 @@ ${TOP_BAR_HOME}
       <div class="qs">
         <div class="steps">
           <div class="step"><span class="num">1</span><div><h4>Point at the endpoint</h4><p><code>GET /maps/api/distancematrix/json</code> — the only route you need.</p></div></div>
-          <div class="step"><span class="num">2</span><div><h4>Single pair, or a matrix</h4><p>Pipe-separate <code>origins</code> and <code>destinations</code> to score <b>up to 100 elements</b> (N origins × M destinations) in one call. Single pair is just N=M=1.</p></div></div>
+          <div class="step"><span class="num">2</span><div><h4>Single pair, or a matrix</h4><p>Pipe-separate <code>origins</code> and <code>destinations</code> to score <b>up to 25 elements</b> (N origins × M destinations) in one call. Single pair is just N=M=1.</p></div></div>
           <div class="step"><span class="num">3</span><div><h4>Read the standard JSON</h4><p>Same shape you already parse — <code>rows[i].elements[j]</code> = origin <em>i</em> to destination <em>j</em>. Plus additive <code>*_matches</code> confidence fields.</p></div></div>
           <div class="step"><span class="num">4</span><div><h4>Self-throttle on headers</h4><p>Every response carries <code>X-RateLimit-Remaining-*</code> so you can back off cleanly.</p></div></div>
         </div>
@@ -1255,7 +1255,7 @@ ${topBarOther("/docs")}
             <tr><td class="k">key</td><td class="req muted">no</td><td class="muted">—</td><td><b>Not required.</b> Public endpoint is rate-limited per IP.</td></tr>
           </tbody>
         </table>
-        <div class="note"><span class="ico">!</span><p>Max <b>100 elements</b> (origins × destinations) per request, or you’ll get <code>MAX_ELEMENTS_EXCEEDED</code>. <code>place_id:</code> inputs return <code>NOT_FOUND</code>.</p></div>
+        <div class="note"><span class="ico">!</span><p>Max <b>25 elements</b> (origins × destinations) per request, or you’ll get <code>MAX_ELEMENTS_EXCEEDED</code>. <code>place_id:</code> inputs return <code>NOT_FOUND</code>.</p></div>
       </section>
 
       <section id="response">
@@ -1299,7 +1299,7 @@ ${topBarOther("/docs")}
           <tbody>
             <tr><td class="k">OK</td><td>Request valid; see per-element statuses.</td></tr>
             <tr><td class="k">INVALID_REQUEST</td><td>Missing or malformed parameters.</td></tr>
-            <tr><td class="k">MAX_ELEMENTS_EXCEEDED</td><td>origins × destinations &gt; 100.</td></tr>
+            <tr><td class="k">MAX_ELEMENTS_EXCEEDED</td><td>origins × destinations &gt; 25.</td></tr>
             <tr><td class="k">OVER_QUERY_LIMIT</td><td>Rate limit hit — returned with HTTP <code>429</code>.</td></tr>
             <tr><td class="k">REQUEST_DENIED</td><td>Request refused.</td></tr>
           </tbody>
