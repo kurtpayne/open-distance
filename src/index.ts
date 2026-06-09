@@ -193,8 +193,11 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
 
       // Reject oversize requests BEFORE charging any budget. A request over the
       // per-request element cap never touches the per-IP daily or global budget.
-      // Mirrors handleDistanceMatrix's MAX_ELEMENTS_EXCEEDED body but returns
-      // HTTP 400 (it's a client error, charged to nobody).
+      // Reject before charging any budget, but return HTTP 200 with the
+      // legacy MAX_ELEMENTS_EXCEEDED status in the body — same as
+      // handleDistanceMatrix and the legacy Distance Matrix wire format
+      // (query-level errors ride in the JSON status, not the HTTP status).
+      // Charged to nobody.
       const maxElements = readMaxElements(envR);
       if (elements > maxElements) {
         return new Response(JSON.stringify({
@@ -202,7 +205,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
           error_message: `Max ${maxElements} elements (origins × destinations) per request.${cta}`,
           rows: [], origin_addresses: [], destination_addresses: [],
         }), {
-          status: 400,
+          status: 200,
           headers: { "content-type": "application/json; charset=UTF-8", "cache-control": "no-store" },
         });
       }
