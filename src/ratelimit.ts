@@ -13,8 +13,13 @@
 // (fails open) -- acceptable for abuse mitigation.
 //
 // Three tiers (per-second / per-hour / per-day); a request is blocked when
-// any tier is over its limit. Defaults 25/sec, 500/hour, 10000/day per IP.
+// any tier is over its limit. Defaults 5/sec, 100/hour, 1000/day per IP.
 // Tunable via env vars RL_PER_SEC / RL_PER_HOUR / RL_PER_DAY (0 disables).
+//
+// COST NOTE: defaults are conservative to bound per-IP usage. Counters now live
+// in a Durable Object (~$0.15/M requests) instead of KV (was 3 writes/req at
+// $5/M). Per-IP limits don't cap GLOBAL spend — pair with a Cloudflare billing
+// alert. Raise via env for a trusted/private fork.
 //
 // Every response (both allowed and 429) carries headers:
 //   X-RateLimit-Limit-{Second,Hour,Day}      = configured limit for that tier
@@ -31,9 +36,9 @@ export interface RateLimitConfig {
 }
 
 export const DEFAULT_LIMITS: RateLimitConfig = {
-  perSec: 25,
-  perHour: 500,
-  perDay: 10_000,
+  perSec: 5,
+  perHour: 100,
+  perDay: 1_000,
 };
 
 export type TierName = "sec" | "hour" | "day";

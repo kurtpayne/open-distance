@@ -261,6 +261,30 @@ Pass `--force` to reload every state regardless of the manifest:
 ./refresh.sh load-d1 --force IL OH    # force-reload specific states
 ```
 
+## Costs
+
+**Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
+**< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
+(~1 M/day) sit inside Cloudflare's included tiers, R2/KV storage is a few dollars,
+and the per-IP rate limiter now runs on a Durable Object (~$0.15/M requests)
+instead of KV. The real cost is **D1 row _writes_** during a data load:
+
+| Action | Approx. cost | Why |
+|---|---|---|
+| **Full continental-US load** (`refresh.sh all`) | **~$500–$1,000+ (one-time)** | ~222 M addresses + ~34 M segments, but D1 bills ~1.38 B **rows written** — the `addr_fts` FTS5 index (built per-row via the AFTER-INSERT trigger) is ~80% of it. D1 writes are **$1 / million** (50 M/mo free). |
+| Reload one large state (e.g. TX) | ~$30–$150 | Same FTS5 write amplification, proportional to that state's address count. |
+| Serving | **< $10 / month** | Reads are within free tiers; rate limiting is on a Durable Object, not KV. |
+
+**Implications:**
+- A _full_ refresh is a several-hundred-dollar event. **Do not refresh on a
+  blind cron.** Upstream sources (NAD quarterly, OA/OSM irregular) rarely all
+  change at once — the per-state source-hash skip above reloads only changed
+  states, turning a ~$1,000 reload into a small partial one.
+- Set a **Cloudflare billing alert** — the only hard backstop against a surprise
+  overage from a reload or traffic spike.
+- Per-IP rate limits (`src/ratelimit.ts`, default 5/sec · 100/hour · 1000/day,
+  env-tunable) bound per-client usage but not _global_ spend; pair with the alert.
+
 ## Address + street data sources
 
 Stored in the per-state shard's `addresses` table (FTS5 indexed via AFTER
