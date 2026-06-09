@@ -289,6 +289,16 @@ Pass `--force` to reload every state regardless of the manifest:
 
 ## Costs
 
+**Total cost of ownership — expensive once, then cheap for years:**
+
+| Phase | Cost | Covers |
+|---|---|---|
+| **Setup** (one-time) | **~$500** | The full continental-US data load into D1 (write-heavy — this is the nasty part). |
+| **Maintenance** | **~$200/year** (~$50/quarter) | Refreshing only the states whose source data changed (NAD is quarterly; the per-state skip handles the rest). |
+| **Hosting** | **~$5/month** | Serving up to **~750k–1M queries/month**, inside Cloudflare's free tier. |
+
+So a fork is ~$500 up front, then **~$5/mo + ~$200/yr** to run the entire lower-48 for a long horizon. The hosted instance is capped at **25,000 requests/day (~750k/month)** via `GLOBAL_DAILY_LIMIT` — that ceiling is what keeps it inside the free tier. Raising it to ~1M/month stays ~$5/mo; past that it's roughly **+$5 per additional 1M requests/month** (lift the billing alert to match). The detail behind these numbers:
+
 **Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
 **< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
 (~1 M/day) sit inside Cloudflare's included tiers, R2/KV storage is a few dollars,
