@@ -12,8 +12,8 @@ import {
   hashIp,
   RateLimitResult,
 } from "./ratelimit";
-import { GlobalLimitResult } from "./global_limiter_do";
-import { readContactEmail, contactCta } from "./config";
+import { GlobalLimitResult, readGlobalLimitFromEnv } from "./global_limiter_do";
+import { readContactEmail, contactCta, resolveSiteConfig } from "./config";
 
 export { L1Router } from "./l1_router";
 export { RateLimiter } from "./ratelimiter_do";
@@ -241,11 +241,20 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     // etc. to return the same status as GET. Workers strips the body for HEAD
     // automatically, so we can return the GET-shaped Response unchanged.
     if (req.method === "GET" || req.method === "HEAD") {
+      // Resolve every operator-tunable knob from env once so the rendered site
+      // reflects this deployment's own limits + contact address (not the
+      // maintainer's defaults). A forker changes config, not code.
+      const siteEnv = env as unknown as Record<string, unknown>;
+      const siteCfg = resolveSiteConfig(
+        siteEnv,
+        readLimitsFromEnv(siteEnv),
+        readGlobalLimitFromEnv(siteEnv),
+      );
       if (url.pathname === "/" || url.pathname === "/try") {
-        return new Response(renderIndex(), { headers: htmlHeaders() });
+        return new Response(renderIndex(siteCfg), { headers: htmlHeaders() });
       }
       if (url.pathname === "/docs") {
-        return new Response(renderDocs(), { headers: htmlHeaders() });
+        return new Response(renderDocs(siteCfg), { headers: htmlHeaders() });
       }
       if (url.pathname === "/privacy") {
         return new Response(renderPrivacy(), { headers: htmlHeaders() });
@@ -347,14 +356,18 @@ coords       = caller supplied "lat,lng" directly
 
 Per-IP, DurableObject-backed. There is no paid tier.
 
-- 5 requests per second
-- 100 requests per hour
-- 1,000 requests per day
+- ${siteCfg.perSec.toLocaleString("en-US")} requests per second
+- ${siteCfg.perHour.toLocaleString("en-US")} requests per hour
+- ${siteCfg.perDay.toLocaleString("en-US")} requests per day
 
-On top of the per-IP tiers, an account-wide cap of 25,000 requests/day
+${siteCfg.globalDaily > 0
+  ? `On top of the per-IP tiers, an account-wide cap of ${siteCfg.globalDaily.toLocaleString("en-US")} requests/day
 (resets at 00:00 UTC) bounds total serving cost. When it's hit the API
-returns HTTP 503 + Retry-After (not 429). Need higher or dedicated limits?
-Email hello@open-distance.com for custom solutions.
+returns HTTP 503 + Retry-After (not 429).`
+  : `There is no account-wide daily cap on this deployment.`}${siteCfg.contactEmail
+  ? ` Need higher or dedicated limits?
+Email ${siteCfg.contactEmail} for custom solutions.`
+  : ""}
 
 Every response carries headers: X-RateLimit-Limit-Second / -Hour / -Day,
 X-RateLimit-Remaining-Second / -Hour / -Day, X-RateLimit-Reset-Second /

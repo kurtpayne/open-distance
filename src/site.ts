@@ -5,6 +5,12 @@
 
 import { STATE_CODES } from "./state_parser";
 import { PANEL_SNAPSHOT } from "./panel_data";
+import { SiteConfig } from "./config";
+
+// Thousands-separated integer for prose (e.g. 1000 -> "1,000", 25000 -> "25,000").
+function fmtNum(n: number): string {
+  return n.toLocaleString("en-US");
+}
 
 const SITE_DESCRIPTION =
   "Free open-source distance and duration matrix API for the continental US. " +
@@ -324,7 +330,10 @@ footer{border-top:1px solid var(--line);padding:54px 0 40px;margin-top:40px}
 
 // Homepage JS. Wired to the real API at /maps/api/distancematrix/json.
 // SCENARIOS only carries input strings; results come from the live response.
-const HOME_JS = `
+// Built from the resolved SiteConfig so the FAQ + matrix-input cap reflect the
+// deployment's own limits rather than the maintainer's defaults.
+function homeJs(cfg: SiteConfig): string {
+  return `
 (function(){
   'use strict';
   var $=function(s,r){return (r||document).querySelector(s)};
@@ -506,7 +515,9 @@ const HOME_JS = `
   }
 
   // ---- matrix mode ----
-  var MAX=5;
+  // Per-axis input cap derived from the configured element cap so the demo
+  // can't build a matrix the API would reject (origins x destinations).
+  var MAX=${Math.max(1, Math.floor(Math.sqrt(cfg.maxElements)))};
   function shortLabel(s){
     var t = (s.split(',')[0] || s).trim() || s.trim();
     return t.length>14 ? t.slice(0,13)+'\\u2026' : t;
@@ -702,9 +713,9 @@ const HOME_JS = `
   // ---- FAQ ----
   var FAQ = {
     'Can do': [
-      ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (5/sec, 100/hour, 1000/day), plus an account-wide daily cap. Forks that want private auth can re-add it.'],
+      ['Do I really not need an API key?','Correct. The public endpoint takes no <code>key=</code> and has no signup. It is rate-limited per IP (${cfg.perSec}/sec, ${cfg.perHour}/hour, ${cfg.perDay}/day), plus an account-wide daily cap. Forks that want private auth can re-add it.'],
       ['Can I drop it in where a commercial distance matrix was?','Mostly, yes. The JSON is byte-compatible with the legacy distance-matrix shape, so old clients keep parsing it. It adds a few fields (<code>*_matches</code>, <code>data_version</code>, <code>copyrights</code>) that old clients simply ignore.'],
-      ['How big a matrix can I request?','Up to <code>25</code> elements — origins × destinations — in a single call.'],
+      ['How big a matrix can I request?','Up to <code>${cfg.maxElements}</code> elements — origins × destinations — in a single call.'],
       ['Do cross-country routes work?','Yes. NYC↔LA, Seattle↔Miami, Boston↔Houston — anything in the lower 48 + DC. Long-haul queries route through a national highway overlay.'],
       ['Can I host my own?','Yes — that\\u2019s the point. Fork it and deploy to your own edge account for less than $10/month for the whole continental US. Tune or disable the rate limits with env vars.']
     ],
@@ -780,6 +791,7 @@ const HOME_JS = `
   calculate();
 })();
 `;
+}
 
 // Docs-page CSS (separate; layout is two-pane with sticky TOC).
 const DOCS_CSS = TOKENS + `
@@ -1009,7 +1021,7 @@ const SHORT_FOOTER = `
 </footer>
 `;
 
-export function renderIndex(): string {
+export function renderIndex(cfg: SiteConfig): string {
   return `<!doctype html>
 <html lang="en"><head>
 ${headMeta("Open Distance — free distance-matrix API", "/")}
@@ -1040,7 +1052,7 @@ ${TOP_BAR_HOME}
           <div id="singleView">
             <div class="fields">
               <label class="field"><span class="pin"></span><input id="origin" value="Austin, TX" autocomplete="off" spellcheck="false" aria-label="Origin"></label>
-              <div class="leg"><span>↓ 1 origin → 1 destination &nbsp;·&nbsp; switch to <b style="color:var(--ink2)">Matrix</b> for up to 25 pairs in one call</span></div>
+              <div class="leg"><span>↓ 1 origin → 1 destination &nbsp;·&nbsp; switch to <b style="color:var(--ink2)">Matrix</b> for up to ${cfg.maxElements} pairs in one call</span></div>
               <label class="field"><span class="pin b"></span><input id="dest" value="Dallas, TX" autocomplete="off" spellcheck="false" aria-label="Destination"></label>
             </div>
             <div class="chips" id="examples">
@@ -1092,7 +1104,7 @@ ${TOP_BAR_HOME}
         <span class="sep"></span>
         <span class="tg">Apache-2.0</span>
         <span class="tg"><b>~1%</b> distance vs major providers</span>
-        <span class="tg">Up to <b>100</b> elements / call</span>
+        <span class="tg">Up to <b>${cfg.maxElements}</b> elements / call</span>
       </div>
     </div>
   </section>
@@ -1112,7 +1124,7 @@ ${TOP_BAR_HOME}
           <p class="sub">The useful 90%, for free.</p>
           <ul class="tlist yes">
             <li><span class="gi">✓</span><span style="color:var(--ink)"><b>Driving distance + duration</b> between any two US points<br><span>Addresses or raw lat,lng — lower 48 + DC, including cross-country.</span></span></li>
-            <li><span class="gi">✓</span><span style="color:var(--ink)"><b>A 100-pair matrix in one call</b><br><span>Up to 100 origin × destination elements.</span></span></li>
+            <li><span class="gi">✓</span><span style="color:var(--ink)"><b>A ${cfg.maxElements}-pair matrix in one call</b><br><span>Up to ${cfg.maxElements} origin × destination elements.</span></span></li>
             <li><span class="gi">✓</span><span style="color:var(--ink)"><b>Wire-compatible JSON response</b><br><span>Same shape as the legacy Distance Matrix API; clients keep parsing.</span></span></li>
             <li><span class="gi">✓</span><span style="color:var(--ink)"><b>Self-host the whole thing</b><br><span>Fork it, deploy to your own edge, set your own limits.</span></span></li>
           </ul>
@@ -1144,7 +1156,7 @@ ${TOP_BAR_HOME}
       <div class="qs">
         <div class="steps">
           <div class="step"><span class="num">1</span><div><h4>Point at the endpoint</h4><p><code>GET /maps/api/distancematrix/json</code> — the only route you need.</p></div></div>
-          <div class="step"><span class="num">2</span><div><h4>Single pair, or a matrix</h4><p>Pipe-separate <code>origins</code> and <code>destinations</code> to score <b>up to 25 elements</b> (N origins × M destinations) in one call. Single pair is just N=M=1.</p></div></div>
+          <div class="step"><span class="num">2</span><div><h4>Single pair, or a matrix</h4><p>Pipe-separate <code>origins</code> and <code>destinations</code> to score <b>up to ${cfg.maxElements} elements</b> (N origins × M destinations) in one call. Single pair is just N=M=1.</p></div></div>
           <div class="step"><span class="num">3</span><div><h4>Read the standard JSON</h4><p>Same shape you already parse — <code>rows[i].elements[j]</code> = origin <em>i</em> to destination <em>j</em>. Plus additive <code>*_matches</code> confidence fields.</p></div></div>
           <div class="step"><span class="num">4</span><div><h4>Self-throttle on headers</h4><p>Every response carries <code>X-RateLimit-Remaining-*</code> so you can back off cleanly.</p></div></div>
         </div>
@@ -1178,11 +1190,11 @@ ${TOP_BAR_HOME}
 
 ${HOME_FOOTER}
 
-<script>${HOME_JS}</script>
+<script>${homeJs(cfg)}</script>
 </body></html>`;
 }
 
-export function renderDocs(): string {
+export function renderDocs(cfg: SiteConfig): string {
   return `<!doctype html>
 <html lang="en"><head>
 ${headMeta("Open Distance — API docs", "/docs")}
@@ -1255,7 +1267,7 @@ ${topBarOther("/docs")}
             <tr><td class="k">key</td><td class="req muted">no</td><td class="muted">—</td><td><b>Not required.</b> Public endpoint is rate-limited per IP.</td></tr>
           </tbody>
         </table>
-        <div class="note"><span class="ico">!</span><p>Max <b>25 elements</b> (origins × destinations) per request, or you’ll get <code>MAX_ELEMENTS_EXCEEDED</code>. <code>place_id:</code> inputs return <code>NOT_FOUND</code>.</p></div>
+        <div class="note"><span class="ico">!</span><p>Max <b>${cfg.maxElements} elements</b> (origins × destinations) per request, or you’ll get <code>MAX_ELEMENTS_EXCEEDED</code>. <code>place_id:</code> inputs return <code>NOT_FOUND</code>.</p></div>
       </section>
 
       <section id="response">
@@ -1299,7 +1311,7 @@ ${topBarOther("/docs")}
           <tbody>
             <tr><td class="k">OK</td><td>Request valid; see per-element statuses.</td></tr>
             <tr><td class="k">INVALID_REQUEST</td><td>Missing or malformed parameters.</td></tr>
-            <tr><td class="k">MAX_ELEMENTS_EXCEEDED</td><td>origins × destinations &gt; 25.</td></tr>
+            <tr><td class="k">MAX_ELEMENTS_EXCEEDED</td><td>origins × destinations &gt; ${cfg.maxElements}.</td></tr>
             <tr><td class="k">OVER_QUERY_LIMIT</td><td>Per-IP rate limit hit (HTTP <code>429</code>), or the account-wide daily cap hit (HTTP <code>503</code> + <code>Retry-After</code>).</td></tr>
             <tr><td class="k">REQUEST_DENIED</td><td>Request refused.</td></tr>
           </tbody>
@@ -1321,20 +1333,20 @@ ${topBarOther("/docs")}
         <table class="tbl">
           <thead><tr><th>Window</th><th>Limit</th><th>Env var</th></tr></thead>
           <tbody>
-            <tr><td>Second</td><td><b>5</b></td><td class="k">RL_PER_SEC</td></tr>
-            <tr><td>Hour</td><td><b>100</b></td><td class="k">RL_PER_HOUR</td></tr>
-            <tr><td>Day</td><td><b>1,000</b></td><td class="k">RL_PER_DAY</td></tr>
+            <tr><td>Second</td><td><b>${fmtNum(cfg.perSec)}</b></td><td class="k">RL_PER_SEC</td></tr>
+            <tr><td>Hour</td><td><b>${fmtNum(cfg.perHour)}</b></td><td class="k">RL_PER_HOUR</td></tr>
+            <tr><td>Day</td><td><b>${fmtNum(cfg.perDay)}</b></td><td class="k">RL_PER_DAY</td></tr>
           </tbody>
         </table>
-        <div class="note"><span class="ico">!</span><p>On top of the per-IP limits there's an <b>account-wide cap of 25,000 requests/day</b> (resets at <code>00:00&nbsp;UTC</code>). If the whole service hits it you'll get HTTP <code>503</code> with a <code>Retry-After</code> header — not a <code>429</code>. Need higher or dedicated limits? Email <a href="mailto:hello@open-distance.com">hello@open-distance.com</a> for custom solutions.</p></div>
+        <div class="note"><span class="ico">!</span><p>${cfg.globalDaily > 0 ? `On top of the per-IP limits there's an <b>account-wide cap of ${fmtNum(cfg.globalDaily)} requests/day</b> (resets at <code>00:00&nbsp;UTC</code>). If the whole service hits it you'll get HTTP <code>503</code> with a <code>Retry-After</code> header — not a <code>429</code>.` : `There is no account-wide daily cap on this deployment.`}${cfg.contactEmail ? ` Need higher or dedicated limits? Email <a href="mailto:${cfg.contactEmail}">${cfg.contactEmail}</a> for custom solutions.` : ""}</p></div>
         <h3>Self-throttle headers</h3>
         <p>Every response — <code>200</code> and <code>429</code> alike — carries limit headers so you can back off without an extra probe.</p>
         <div class="code">
           <div class="cap">response headers <button class="cp" type="button">Copy</button></div>
-          <pre><span class="key">X-RateLimit-Limit-Second</span><span class="pun">:</span>     <span class="num">5</span>
-<span class="key">X-RateLimit-Remaining-Second</span><span class="pun">:</span> <span class="num">4</span>
-<span class="key">X-RateLimit-Remaining-Hour</span><span class="pun">:</span>   <span class="num">99</span>
-<span class="key">X-RateLimit-Remaining-Day</span><span class="pun">:</span>    <span class="num">998</span>
+          <pre><span class="key">X-RateLimit-Limit-Second</span><span class="pun">:</span>     <span class="num">${cfg.perSec}</span>
+<span class="key">X-RateLimit-Remaining-Second</span><span class="pun">:</span> <span class="num">${Math.max(0, cfg.perSec - 1)}</span>
+<span class="key">X-RateLimit-Remaining-Hour</span><span class="pun">:</span>   <span class="num">${Math.max(0, cfg.perHour - 1)}</span>
+<span class="key">X-RateLimit-Remaining-Day</span><span class="pun">:</span>    <span class="num">${Math.max(0, cfg.perDay - 2)}</span>
 <span class="cmt"># on 429:</span> <span class="key">Retry-After</span><span class="pun">,</span> <span class="key">X-RateLimit-Tier</span><span class="pun">:</span> <span class="str">sec | hour | day</span></pre>
         </div>
       </section>

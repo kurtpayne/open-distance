@@ -4,6 +4,7 @@ import {
   readContactEmail,
   contactCta,
   readMaxElements,
+  resolveSiteConfig,
   DEFAULT_CONTACT_EMAIL,
   DEFAULT_MAX_ELEMENTS,
 } from "./config.ts";
@@ -60,4 +61,33 @@ test("readMaxElements floors at 1 and truncates fractions", () => {
 
 test("readMaxElements falls back to the default on a non-numeric value", () => {
   assert.equal(readMaxElements({ MAX_ELEMENTS: "abc" }), DEFAULT_MAX_ELEMENTS);
+});
+
+// --- resolveSiteConfig ------------------------------------------------------
+
+test("resolveSiteConfig assembles every knob from env + provided limits", () => {
+  const cfg = resolveSiteConfig(
+    { MAX_ELEMENTS: "50", CONTACT_EMAIL: "ops@example.com" },
+    { perSec: 5, perHour: 100, perDay: 1000 },
+    25000,
+  );
+  assert.deepEqual(cfg, {
+    perSec: 5,
+    perHour: 100,
+    perDay: 1000,
+    globalDaily: 25000,
+    maxElements: 50,
+    contactEmail: "ops@example.com",
+  });
+});
+
+test("resolveSiteConfig carries a blank contact email through (CTA-suppressing fork)", () => {
+  const cfg = resolveSiteConfig(
+    { CONTACT_EMAIL: "" },
+    { perSec: 5, perHour: 100, perDay: 1000 },
+    0,
+  );
+  assert.equal(cfg.contactEmail, "");
+  assert.equal(cfg.maxElements, DEFAULT_MAX_ELEMENTS);
+  assert.equal(cfg.globalDaily, 0);
 });
