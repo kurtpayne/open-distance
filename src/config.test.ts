@@ -65,17 +65,16 @@ test("readMaxElements falls back to the default on a non-numeric value", () => {
 
 // --- resolveSiteConfig ------------------------------------------------------
 
-test("resolveSiteConfig assembles every knob from env + provided limits", () => {
+test("resolveSiteConfig assembles every knob from env + provided limits (element budgets)", () => {
   const cfg = resolveSiteConfig(
     { MAX_ELEMENTS: "50", CONTACT_EMAIL: "ops@example.com" },
-    { perSec: 5, perHour: 100, perDay: 1000 },
+    { perSec: 5, perDay: 2500 },
     25000,
   );
   assert.deepEqual(cfg, {
     perSec: 5,
-    perHour: 100,
-    perDay: 1000,
-    globalDaily: 25000,
+    perDay: 2500, // elements/day
+    globalDaily: 25000, // elements/day
     maxElements: 50,
     contactEmail: "ops@example.com",
   });
@@ -84,7 +83,7 @@ test("resolveSiteConfig assembles every knob from env + provided limits", () => 
 test("resolveSiteConfig carries a blank contact email through (CTA-suppressing fork)", () => {
   const cfg = resolveSiteConfig(
     { CONTACT_EMAIL: "" },
-    { perSec: 5, perHour: 100, perDay: 1000 },
+    { perSec: 5, perDay: 2500 },
     0,
   );
   assert.equal(cfg.contactEmail, "");
