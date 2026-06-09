@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Matrix cap lowered to 25 elements** (5×5) per request (was 100); over the
+  cap still returns `MAX_ELEMENTS_EXCEEDED`.
+- **Account-wide global daily cap**: a single `GlobalLimiter` DurableObject
+  enforces a hard per-UTC-day limit on admitted requests (default 25,000, env
+  var `GLOBAL_DAILY_LIMIT`, `0` disables) to keep total serving inside the free
+  tier. Checked after the per-IP gate; over the cap returns HTTP `503` with
+  `Retry-After` (seconds to `00:00 UTC`) and `Cache-Control: no-store`.
+  Fail-open on any limiter fault.
+- **Custom-solutions CTA** added to the `429`, `503`, and
+  `MAX_ELEMENTS_EXCEEDED` error messages (`hello@open-distance.com`).
+
 ## 1.0 — initial public release
 
 First public version. Everything before this commit lived in a private
