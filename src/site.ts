@@ -1363,7 +1363,8 @@ ${topBarOther("/docs")}
 
       <section id="selfhost">
         <h2>Self-hosting</h2>
-        <p>The whole thing is fork-and-deploy on your own edge account for <b>less than $10/month</b> for the entire continental US. The pipeline (fetch → build → upload → publish) is driven by one script.</p>
+        <p>The whole thing is fork-and-deploy on your own edge account for the entire continental US. The pipeline (fetch → build → upload → publish) is driven by one script.</p>
+        <p class="lede">The cost model is <b>expensive once, then cheap for years</b>: roughly <b>~$500 one-time</b> for the full data load (it's write-heavy on D1), then <b>~$5/month</b> hosting + <b>~$200/year</b> maintenance to serve ~750k–1M queries/month — the entire lower-48. Honest about the nasty setup; the long horizon is cheap.</p>
         <div class="note ok"><span class="ico">✓</span><p>Full setup, data sources, and the refresh pipeline live in the repo. <a class="lnk" href="https://github.com/kurtpayne/open-distance#populating-data-from-a-clean-clone" target="_blank" rel="noopener">Read the self-host guide →</a></p></div>
       </section>
     </main>
