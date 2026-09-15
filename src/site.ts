@@ -179,11 +179,17 @@ const HOME_CSS = TOKENS + `
 .calc-btn:active{transform:translateY(1px)}
 .calc-btn[data-busy="1"]{filter:saturate(.5);pointer-events:none}
 
-.readout{margin-top:18px;border-top:1px dashed var(--line);padding-top:16px;display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.readout{margin-top:18px;border-top:1px dashed var(--line);padding-top:16px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px 22px}
+.ro-metric{flex:0 0 auto}
 .ro-metric .ro-l{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
-.ro-metric .ro-v{font-family:var(--font-mono);font-weight:500;font-size:clamp(34px,4.2vw,50px);line-height:1;letter-spacing:-.02em;margin-top:5px}
+.ro-metric .ro-v{font-family:var(--font-mono);font-weight:500;font-size:clamp(34px,4.2vw,50px);line-height:1;letter-spacing:-.02em;margin-top:5px;white-space:nowrap}
 .ro-metric .ro-v small{font-size:.4em;color:var(--ink2);font-weight:500;letter-spacing:0;margin-left:3px}
-.ro-badges{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.ro-badges{display:flex;flex-direction:column;gap:6px;align-items:flex-end;margin-left:auto}
+.badge{white-space:nowrap}
+@media(max-width:620px){
+  .ro-metric .ro-v{font-size:clamp(30px,8.5vw,44px)}
+  .ro-badges{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;margin-left:0}
+}
 .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;font-weight:500;
   color:var(--ok);background:var(--ok-soft);border:1px solid color-mix(in srgb,var(--ok) 28%,transparent);border-radius:100px;padding:3px 9px}
 .badge.dim{color:var(--ink3);background:var(--paper2);border-color:var(--line)}
