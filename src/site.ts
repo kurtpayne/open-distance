@@ -341,20 +341,20 @@ function homeJs(cfg: SiteConfig): string {
 
   // Example chips carry input strings only — results come from the real API.
   var SCENARIOS={
-    sf:{o:'Stanford, CA',d:'San Francisco, CA'},
-    tx:{o:'Austin, TX',d:'Dallas, TX'},
-    ny:{o:'Brooklyn, NY',d:'Newark, NJ'},
-    fl:{o:'Miami, FL',d:'Orlando, FL'}
+    sf:{o:'450 Jane Stanford Way, Stanford, CA 94305',d:'1 Market St, San Francisco, CA 94105'},
+    tx:{o:'1100 Congress Ave, Austin, TX 78701',d:'1500 Marilla St, Dallas, TX 75201'},
+    ny:{o:'209 Joralemon St, Brooklyn, NY 11201',d:'920 Broad St, Newark, NJ 07102'},
+    fl:{o:'3500 Pan American Dr, Miami, FL 33133',d:'400 S Orange Ave, Orlando, FL 32801'}
   };
 
   var state={
     units:'imperial', mode:'single',
     // cur: latest single result. Fields populated from the live response.
-    cur:{o:'Austin, TX', d:'Dallas, TX',
+    cur:{o:'1100 Congress Ave, Austin, TX 78701', d:'1500 Marilla St, Dallas, TX 75201',
          oa:'', da:'', mi:null, min:null, om:'', dm:'', err:null,
          distText:'', durText:''},
-    mO:['Austin, TX','Houston, TX'],
-    mD:['Dallas, TX','San Antonio, TX'],
+    mO:['1100 Congress Ave, Austin, TX 78701','901 Bagby St, Houston, TX 77002'],
+    mD:['1500 Marilla St, Dallas, TX 75201','300 Alamo Plaza, San Antonio, TX 78205'],
     mMatrix:null
   };
   var KM=1.609344;
@@ -473,8 +473,8 @@ function homeJs(cfg: SiteConfig): string {
   var busy=false;
   async function calculate(){
     if (busy) return;
-    var o = $('#origin').value.trim() || 'Austin, TX';
-    var d = $('#dest').value.trim() || 'Dallas, TX';
+    var o = $('#origin').value.trim() || '1100 Congress Ave, Austin, TX 78701';
+    var d = $('#dest').value.trim() || '1500 Marilla St, Dallas, TX 75201';
     state.cur.o = o; state.cur.d = d;
     busy = true;
     var btn = $('#calcBtn'); btn.dataset.busy='1'; btn.textContent='Routing…';
@@ -672,8 +672,8 @@ function homeJs(cfg: SiteConfig): string {
   function renderCode(){
     var tab = $('#codeTabs button.on').dataset.l;
     var base = 'https://open-distance.com/maps/api/distancematrix/json';
-    var o = 'Austin, TX|Houston, TX';
-    var d = 'Dallas, TX|San Antonio, TX';
+    var o = '1100 Congress Ave, Austin, TX 78701|901 Bagby St, Houston, TX 77002';
+    var d = '1500 Marilla St, Dallas, TX 75201|300 Alamo Plaza, San Antonio, TX 78205';
     var html='';
     if (tab==='curl'){
       html = '<span class="cmt"># no key — just GET it</span>\\n'+
@@ -1051,9 +1051,9 @@ ${TOP_BAR_HOME}
 
           <div id="singleView">
             <div class="fields">
-              <label class="field"><span class="pin"></span><input id="origin" value="Austin, TX" autocomplete="off" spellcheck="false" aria-label="Origin"></label>
+              <label class="field"><span class="pin"></span><input id="origin" value="1100 Congress Ave, Austin, TX 78701" autocomplete="off" spellcheck="false" aria-label="Origin"></label>
               <div class="leg"><span>↓ 1 origin → 1 destination &nbsp;·&nbsp; switch to <b style="color:var(--ink2)">Matrix</b> for up to ${cfg.maxElements} pairs in one call</span></div>
-              <label class="field"><span class="pin b"></span><input id="dest" value="Dallas, TX" autocomplete="off" spellcheck="false" aria-label="Destination"></label>
+              <label class="field"><span class="pin b"></span><input id="dest" value="1500 Marilla St, Dallas, TX 75201" autocomplete="off" spellcheck="false" aria-label="Destination"></label>
             </div>
             <div class="chips" id="examples">
               <button class="chip" data-k="sf" type="button">Stanford → SF</button>
@@ -1249,8 +1249,8 @@ ${topBarOther("/docs")}
           <div class="cap">request <button class="cp" type="button">Copy</button></div>
           <pre><span class="cmt"># no key — just GET it</span>
 <span class="pr">curl</span> <span class="str">"https://open-distance.com/maps/api/distancematrix/json\\
-  ?origins=Stanford,CA|Palo+Alto,CA\\
-  &amp;destinations=San+Francisco,CA|Oakland,CA\\
+  ?origins=450+Jane+Stanford+Way,+Stanford,+CA+94305|250+Hamilton+Ave,+Palo+Alto,+CA+94301\\
+  &amp;destinations=1+Market+St,+San+Francisco,+CA+94105|1111+Broadway,+Oakland,+CA+94607\\
   &amp;units=imperial"</span></pre>
         </div>
       </section>

@@ -35,3 +35,21 @@ export function normalizeQuery(q: string): string {
     .filter(Boolean)
     .join(" ");
 }
+
+
+// A geocodable address query must carry a house number: the first token (or
+// the one right after a leading unit like "apt 3"/"ste 100" is not needed --
+// the house number leads in every source we index). Without it a query such
+// as "austin tx" or "78701" would MATCH any row containing those tokens
+// (e.g. "11001 austin ln, austin, tx 78758") and return a confidently wrong
+// point. City-, ZIP- or street-only inputs are centroid-tier and the contract
+// says those return NOT_FOUND.
+const HOUSE_NUMBER_RE = /^\d+[a-z]?(?:-\d+[a-z]?)?$/;
+export function hasHouseNumber(normalized: string): boolean {
+  const first = normalized.split(" ")[0] ?? "";
+  if (!HOUSE_NUMBER_RE.test(first)) return false;
+  // A lone 5-digit token is a ZIP, not a house number ("78701", "78701 tx").
+  const rest = normalized.slice(first.length).trim();
+  if (/^\d{5}$/.test(first) && rest.split(" ").every(t => !t || t.length <= 2 || /^\d+$/.test(t))) return false;
+  return rest.length > 0;
+}

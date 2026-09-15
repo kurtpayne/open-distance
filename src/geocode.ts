@@ -18,7 +18,7 @@ export type GeocodeResult = GeocodeHit | GeocodeMiss;
 
 const COORD_RE = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/;
 
-import { normalizeQuery } from "./normalize";
+import { normalizeQuery, hasHouseNumber } from "./normalize";
 
 async function sha1Hex(s: string): Promise<string> {
   const data = new TextEncoder().encode(s);
@@ -75,6 +75,9 @@ export async function geocode(
 
   const norm = normalizeQuery(q);
   if (!norm) return { status: "NOT_FOUND", normalized: q };
+  // City-, ZIP- or street-only queries are centroid-tier: the contract
+  // returns NOT_FOUND rather than whichever address happens to share tokens.
+  if (!hasHouseNumber(norm)) return { status: "NOT_FOUND", normalized: q };
 
   // Prefix bumps invalidate stale entries; also: only cache OK results
   // (see below) so partial-data NOT_FOUNDs don't stick around.

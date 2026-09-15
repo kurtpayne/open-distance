@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Centroid-only queries now return `NOT_FOUND`.** A query without a house
+  number (`Austin, TX`, `78701`, `Main St, Austin, TX`) used to full-text match
+  whichever address shared its tokens and come back as a confident `rooftop`
+  point. The geocoder now requires a leading house number, as the contract
+  always said; site demos and doc examples use real street addresses.
+- **Mid-length routes go to the L1 overlay.** Pairs above 500 km (was 1,000;
+  `L0_MAX_KM` var) skip the tiled A*, and the tiled search has an 8 s deadline
+  so it hands off instead of exceeding the Worker CPU limit (Boston→DC,
+  Detroit→DC). `data_version` now reports the address build; new additive
+  `roads_version` reports the tile build.
 - **Delta data refresh (no more DROP+reload).** Quarterly refreshes now apply a
   row-level delta per shard with `etl.sync_d1`: read every shard back into a
   local mirror once (`etl.export_d1_mirror`, rows read only), diff the new CSVs
