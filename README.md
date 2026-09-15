@@ -296,72 +296,77 @@ slicing the ~8 GB NAD archive (`OD_MIN_FREE_GB`, default 60).
 
 ### Quarterly refresh (delta load)
 
-NAD changes nationally every release, so skipping whole unchanged states
-saves nothing for addresses, and a full reload writes ~510M D1 rows (~$460,
-see Costs). The refresh is therefore a **row-level delta** applied by
-`etl.sync_d1`, which never `DROP`s a live shard. The diff is computed against
-a local **mirror** of what D1 actually holds, not against last quarter's CSVs
-(the first load reassigned ids under AUTOINCREMENT). Long-form runbook —
-source decisions, credentials, resume/rollback, the metering probes:
-[docs/refresh-quarterly.md](docs/refresh-quarterly.md).
-
-**Detect (automatic, weekly).** `.github/workflows/refresh.yml` runs
-`python3 -m etl.check_upstream` against `state/upstream-snapshot.json`
-(NAD Socrata `blobId`, TIGER vintage + per-state size, OA per-source job ids,
-Geofabrik md5s — no bulk downloads) and opens or comments on a
-"Quarterly refresh" issue when something changed. The load stays manual.
-
-**Load (manual, from the maintainer's Mac).** From the repo root with the
-venv active. D1 billing renews on the 1st; start national runs on the 2nd.
+**Cadence: one run per quarter, on the 2nd of March, June, September and
+December** — the day after Cloudflare billing renews on the 1st, so the whole
+run lands in one 50M-row D1 allowance. Roads, TIGER segments and addresses
+are all handled by that single run; there are no separate schedules. The
+weekly detector (`.github/workflows/refresh.yml` → `etl.check_upstream`) only
+opens an issue when something moved upstream. The refresh itself is one
+command, run from the repo root on the maintainer's Mac with the venv active:
 
 ```bash
-source scripts/cf_env_infisical.sh                   # CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID (forks: .env)
-echo 2026-09 > data/v2/version.txt                   # new version (stage guards refuse an already-loaded one)
-
-# 1. fetch only what changed (refresh.sh fetch does not pass these flags)
-python3 -m etl.fetch_nad                              # national ZIP; move the old archive aside first
-python3 -m etl.fetch_oa --changed-only                # only sources whose OA job/size changed
-python3 -m etl.fetch_tiger --vintage TGRGDB26         # only if reloading segments this quarter
-                                                      # OSM: frozen unless tiles are rebuilt
-
-# 2. build per-state CSVs (no tiles/overlay/upload-r2 unless OSM changed)
-./refresh.sh addresses
-
-# 3. mirror every shard once (rows read only, ~$0.26 nationally; resumable)
-python3 -m etl.export_d1_mirror                       # [--kind addresses|segments|both] [--states ..] [--fresh]
-python3 -m etl.seed_fingerprints --version 2026-06    # once: record what legacy-loaded shards hold
-
-# 4. plan: diff CSVs vs mirror, run the gates, forecast rows written
-python3 -m etl.sync_d1 --version 2026-09 --dry-run   # [--states DC WY] [--only addresses|segments|both]
-
-# 5. apply: smallest shard first, resumable per-state checkpoints
-python3 -m etl.sync_d1 --version 2026-09 --yes --max-rows 48000000
-
-# 6. after the last delete: bump GEO_VERSION in wrangler.toml(.template), commit, deploy via GitHub
+./refresh.sh quarterly          # dry-run: detect -> fetch what changed -> build -> D1 delta plan
+./refresh.sh quarterly --yes    # same, then upload to R2, apply the delta, publish, commit + push
 ```
 
-What `sync_d1` does per shard and table: takes a Time Travel bookmark
-(`wrangler d1 time-travel info`, 30-day rollback window), installs the FTS5
-delete/update triggers, `INSERT OR IGNORE`s the new rows with **explicit ids**
-(a per-quarter block of `2^40 × quarter_index`, all `< 2^53`), then `DELETE`s
-vanished ids by primary key, verifies the row count against
-`mirror − deletes + inserts`, and only then updates the mirror and
-`state/fingerprints.json`. Every statement is idempotent, so a lost response
-is re-sent and a crashed run resumes from `data/v2/state/checkpoints/`.
+Without `--yes` nothing is written to Cloudflare and nothing is committed:
+the command compares upstream against `state/upstream-snapshot.json`,
+downloads only what moved (the NAD archive, changed OpenAddresses sources, a
+new TIGER vintage, fresh OSM extracts when roads are rebuilt), builds the
+new version and prints the `etl.sync_d1 --dry-run` plan with the forecast
+rows written. Read the plan, then re-run with `--yes` (the build is reused).
+
+| Flag | Effect |
+|---|---|
+| `--yes` | upload tiles + L1 overlay to R2, apply the D1 delta (`etl.sync_d1 --only both`), bump `GEO_VERSION` (and `DATA_VERSION` when roads were rebuilt), write the KV manifest, update the upstream snapshot, commit `wrangler.toml(.template)` + `state/` and push so GitHub deploys |
+| `--max-rows N` | hard cap on D1 rows written this run (default 48,000,000) |
+| `--version YYYY-MM` | version to build (default: the current month; refuses one that is already loaded) |
+| `--skip-roads` | keep the previous tiles + overlay; `DATA_VERSION` unchanged (last quarter's OSM extracts must still be on disk for the address build) |
+| `--plan-only` | detect and print what the run would do; no downloads, no credentials |
+| `-- ARGS` | passed through to `etl.sync_d1`, e.g. `-- --allow-rebuild NC` for a state with churn ≥ 50%, `-- --allow-shrink ST` for a real >10% net row loss |
+
+Once per machine: Cloudflare credentials (`source scripts/cf_env_infisical.sh`
+with the Infisical identity in `~/.env`, or `CLOUDFLARE_API_TOKEN` +
+`CLOUDFLARE_ACCOUNT_ID` in `.env`) and the D1 mirror + fingerprints from the
+first delta run (`etl.export_d1_mirror` + `etl.seed_fingerprints`, already
+done for the hosted instance). Disk: keep `data/v2/state/` (mirror, cached
+CSV keys) and the previous version's merged CSVs until the next run
+completes; raw sources (NAD zip, OSM extracts, TIGER gdbs, local tiles) are
+re-downloadable and the command re-fetches what it needs.
+
+Why a delta: NAD changes nationally every release and a full reload writes
+~510M D1 rows (~$460, see Costs). `etl.sync_d1` never `DROP`s a live shard:
+it diffs the new CSVs against a local mirror of D1, inserts new rows with
+explicit ids, deletes vanished ids, verifies the count, then updates the
+mirror and `state/fingerprints.json`; checkpoints make it resumable.
 
 Gates (not overridable by `--yes`):
 
 | Gate | Refuses when |
 |---|---|
 | key-correctness | fewer than 95% of the previous version's CSV keys are found in the mirror (the diff key is wrong; expected 1.0) |
-| churn | `(inserts + deletes) / mirror rows ≥ 50%` for a state — a rebuild is cheaper — unless `--allow-rebuild ST` |
+| churn | `(inserts + deletes) / mirror rows ≥ 50%` for a state — a rebuild is cheaper — unless `-- --allow-rebuild ST` |
+| shrink | a state loses more than 10% of its rows net (almost always a truncated input) unless `-- --allow-shrink ST` |
 | budget | forecast total `> --max-rows`; during apply, actual rows written `> --max-rows` or `> 1.5×` forecast so far |
 | ids | the new id block does not exceed every id already in the shard |
 
-`--dry-run` prints the per-state plan (mirror rows, ins, del, churn, key
-ratio, sub-metre jitter share, forecast) and the estimated dollars above a
-fresh 50M allowance; nothing is written. `--only` defaults to `addresses` —
-pass `--only both` to include segments.
+**Cost model.** Addresses cost ~2 rows written per changed address (insert
+or delete), so a typical quarter fits inside the 50M/month included rows;
+September 2026 was 66M rows (~$16) because NAD re-serialized NC and WI.
+Roads cost nothing in D1 (about 2 h of build and a 9 GB R2 upload). Segments
+write only when the TIGER vintage changes (yearly, ~13-27M rows delta);
+otherwise the previous version's segments are reused.
+
+**Under the hood** (each step is runnable by hand; the
+[runbook](docs/refresh-quarterly.md) walks them): detect `etl.check_upstream`
+→ fetch `etl.fetch_nad`, `etl.fetch_oa --changed-only`, `etl.fetch_tiger
+--vintage`, `etl.fetch_sources` → build `etl.build_nad_addresses`,
+`etl.build_oa_addresses`, `etl.build_addresses`, `etl.merge_addresses`,
+`etl.build_tiger_segments` (or symlink the previous segments), `etl.build_tiles`
++ `etl.build_overlay` → upload `etl/upload_tiles_parallel.sh` + `wrangler r2
+object put` → `etl.sync_d1 --only both --dry-run`, then `--yes --reuse-plans`
+→ publish `etl/publish_manifest.sh`, `etl.check_upstream --update-snapshot`,
+git commit + push.
 
 ## Costs
 
@@ -370,7 +375,7 @@ pass `--only both` to include segments.
 | Phase | Cost | Covers |
 |---|---|---|
 | **Setup** (one-time) | **~$460–500** | The full continental-US data load into D1 (write-heavy — this is the nasty part). The June 2026 load cost about $500. |
-| **Maintenance** | **~$0 in D1 writes** for a typical quarter | A row-level delta at a few percent churn fits inside the 50M rows/month D1 includes; a TIGER segments reload (~68M rows) is the exception and is a separate billing-cycle decision. |
+| **Maintenance** | **~$0 in D1 writes** for a typical quarter | A row-level delta at a few percent churn fits inside the 50M rows/month D1 includes; TIGER segments only write when the Census vintage moves (~yearly, a ~13–27M-row delta in the same run). |
 | **Hosting** | **~$5/month** | Serving up to **~750k–1M queries/month**, inside Cloudflare's free tier. |
 
 So a fork is ~$500 up front, then **~$5/mo** to run the entire lower-48 for a long horizon. The hosted instance is capped at **25,000 elements/day (~750k/month)** via `GLOBAL_ELEMENTS_PER_DAY` — that ceiling is what keeps it inside the free tier. Because the cap is now metered in **elements** (one origin→destination route solve) rather than raw requests, it bounds the actual unit of serving work, so the ~$5/mo guarantee is exact regardless of matrix sizes. Raising it to ~1M elements/month stays ~$5/mo; past that it's roughly **+$5 per additional 1M elements/month** (lift the billing alert to match). The detail behind these numbers:
@@ -396,7 +401,7 @@ Measured on a scratch D1 database (2026-09-14, `etl.d1_probes`):
 | **Full continental-US load** (`refresh.sh all`) | **~$460 (one-time)** | ~221 M addresses × 2 + ~34 M segments × 2 ≈ 510 M rows written at **$1 / million** after the 50 M/mo included. |
 | **Quarterly delta** (`etl.sync_d1`) | **~$0** at a few percent churn | `(inserts + deletes) × 2` rows; forecast by `--dry-run`, hard-capped by `--max-rows`. |
 | Mirror export (`etl.export_d1_mirror`) | ~$0.26 | ~255 M rows read, nothing written. |
-| TIGER segments reload (all states) | ~68 M rows | Exceeds one month's included rows on its own — schedule it in its own billing cycle. |
+| TIGER segments (vintage change, ~yearly) | ~13–27 M rows | Delta inside the same quarterly run (`--only both`); a full reload would be ~68 M rows |
 | Serving | **< $10 / month** | Reads are within free tiers; rate limiting is on a Durable Object, not KV. |
 
 **Implications:**
