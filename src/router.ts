@@ -109,7 +109,7 @@ export async function oneToMany(
   version: string,
   src: NodeRef,
   groups: DestGroup[],
-  opts: { maxSettled?: number } = {},
+  opts: { maxSettled?: number; deadlineMs?: number } = {},
 ): Promise<Map<string, LegResult>> {
   const out = new Map<string, LegResult>();
   if (groups.length === 0) return out;
@@ -185,6 +185,9 @@ export async function oneToMany(
   heap.push(srcH, 0, srcPacked, src.dense, 0);
   const tmp = [0, 0, 0, 0, 0];
   const maxSettled = opts.maxSettled ?? 2_000_000;
+  // Optional wall-clock deadline: checked every 4096 settles so the search
+  // can hand unsatisfied destinations to the L1 fallback in bounded time.
+  const deadline = opts.deadlineMs ? Date.now() + opts.deadlineMs : Infinity;
 
   let active = srcScratch;
   let activePacked = srcPacked;
@@ -209,6 +212,7 @@ export async function oneToMany(
     active.visited[curDense] = 1;
     active.lenTo[curDense] = curLen;
     settled++;
+    if ((settled & 4095) === 0 && Date.now() > deadline) break;
 
     const tInner = targets.get(curTile);
     if (tInner) {
