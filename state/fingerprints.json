@@ -1,15 +1,14 @@
 {
   "AL": {
     "addresses": {
+      "bookmark_before": "00000056-00000000-000050e7-bb58364df70744e6cb017e377451cca2",
       "db_id": "872db8b9-1d4c-4b18-b6a5-fcae54316f5d",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T21:50:40Z",
-      "rows": 4057595,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:39:20Z",
+      "rollback_deadline": "2026-10-15T02:37:24Z",
+      "rows": 4080249,
+      "rows_written_actual": 557757,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "872db8b9-1d4c-4b18-b6a5-fcae54316f5d",
@@ -25,15 +24,14 @@
   },
   "AR": {
     "addresses": {
+      "bookmark_before": "00000059-00000000-000050e7-ce1bf0fb2782d362bf663ad540dbfa89",
       "db_id": "2eddcaed-6487-4f15-b2ee-f1a15624a49e",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T21:52:56Z",
-      "rows": 3510179,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:33:46Z",
+      "rollback_deadline": "2026-10-15T02:32:37Z",
+      "rows": 3529802,
+      "rows_written_actual": 100772,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "2eddcaed-6487-4f15-b2ee-f1a15624a49e",
@@ -49,15 +47,14 @@
   },
   "AZ": {
     "addresses": {
+      "bookmark_before": "0000005e-00000000-000050e7-98860a378d9a04941945cdac249dd9a9",
       "db_id": "ff0ea135-5816-4ee0-b7c2-b8b52f18548c",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T21:54:27Z",
-      "rows": 4976256,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:48:38Z",
+      "rollback_deadline": "2026-10-15T03:41:08Z",
+      "rows": 6172342,
+      "rows_written_actual": 2520098,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "ff0ea135-5816-4ee0-b7c2-b8b52f18548c",
@@ -73,15 +70,14 @@
   },
   "CA": {
     "addresses": {
+      "bookmark_before": "000000ae-00000000-000050e7-3d601a0e6984332a361d77a5e6534833",
       "db_id": "f0766ad2-f5b1-47e5-8f9e-ef2232060117",
-      "duplicate_rows": 1250,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:44:43Z",
-      "rows": 15584513,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:47:09Z",
+      "rollback_deadline": "2026-10-15T03:38:38Z",
+      "rows": 15537580,
+      "rows_written_actual": 1713751,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "f0766ad2-f5b1-47e5-8f9e-ef2232060117",
@@ -97,15 +93,14 @@
   },
   "CO": {
     "addresses": {
+      "bookmark_before": "00000055-00000000-000050e7-2a9d21b91db7dc39c9809837701fcf57",
       "db_id": "29ddea59-615c-490c-a958-d5754c2fe385",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:28:20Z",
-      "rows": 5629632,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:36:17Z",
+      "rollback_deadline": "2026-10-15T02:34:46Z",
+      "rows": 5647793,
+      "rows_written_actual": 269298,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "29ddea59-615c-490c-a958-d5754c2fe385",
@@ -121,15 +116,14 @@
   },
   "CT": {
     "addresses": {
+      "bookmark_before": "00000053-00000000-000050e7-3e67ce7f1f7fdd86649eb6ecbce9b74c",
       "db_id": "a0bfefbb-9e2b-4219-990b-27e4e881c90f",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T21:30:41Z",
-      "rows": 2083677,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:28:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:37:28Z",
+      "rollback_deadline": "2026-10-15T02:35:30Z",
+      "rows": 2118989,
+      "rows_written_actual": 366343,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "a0bfefbb-9e2b-4219-990b-27e4e881c90f",
@@ -145,14 +139,14 @@
   },
   "DC": {
     "addresses": {
-      "bookmark_before": "00000052-00000000-000050e6-71b02a69561fb557984fdada8a3d5d10",
+      "bookmark_before": "00000054-00000000-000050e7-5c08aefc5510cf4785bd810f6d12134a",
       "db_id": "d3ab742b-5216-4f5b-a925-605fb0841d0c",
       "id_block_base": 3298534883328,
-      "loaded_at": "2026-09-14T22:31:16Z",
-      "rollback_deadline": "2026-10-14T22:31:12Z",
-      "rows": 303413,
-      "rows_written_actual": 1003,
-      "version": "2026-09"
+      "loaded_at": "2026-09-15T02:32:03Z",
+      "rollback_deadline": "2026-10-15T02:31:01Z",
+      "rows": 303386,
+      "rows_written_actual": 3107,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "d3ab742b-5216-4f5b-a925-605fb0841d0c",
@@ -168,15 +162,14 @@
   },
   "DE": {
     "addresses": {
+      "bookmark_before": "00000051-00000000-000050e7-02cc03af5b3e6200940af2949657d231",
       "db_id": "bfd80070-c81f-4fea-bd47-6a2553331e1d",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T21:51:39Z",
-      "rows": 1063472,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:33:02Z",
+      "rollback_deadline": "2026-10-15T02:32:02Z",
+      "rows": 1066258,
+      "rows_written_actual": 41578,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "bfd80070-c81f-4fea-bd47-6a2553331e1d",
@@ -192,15 +185,14 @@
   },
   "FL": {
     "addresses": {
+      "bookmark_before": "0000006d-00000000-000050e7-72c1dc064113bc44ba490bd8200d5eeb",
       "db_id": "850559ec-9528-49f5-aefb-fa402e3392cb",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:49:55Z",
-      "rows": 20653493,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:32:32Z",
+      "rollback_deadline": "2026-10-15T02:38:03Z",
+      "rows": 20689513,
+      "rows_written_actual": 596030,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "850559ec-9528-49f5-aefb-fa402e3392cb",
@@ -216,15 +208,14 @@
   },
   "GA": {
     "addresses": {
+      "bookmark_before": "00000053-00000000-000050e7-50ee6feb9d308dbfa147f15d025c9ecb",
       "db_id": "858f1515-4c14-4eee-aa90-7f297fe11717",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:31:32Z",
-      "rows": 4176831,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:34:16Z",
+      "rollback_deadline": "2026-10-15T02:39:30Z",
+      "rows": 4212071,
+      "rows_written_actual": 755231,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "858f1515-4c14-4eee-aa90-7f297fe11717",
@@ -240,15 +231,14 @@
   },
   "IA": {
     "addresses": {
+      "bookmark_before": "00000050-00000000-000050e7-17e2c3563517227d814134042e572dd8",
       "db_id": "ed4e2880-9327-45d9-a8f8-6fd4db31e1ab",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:29:45Z",
-      "rows": 2508719,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:34:48Z",
+      "rollback_deadline": "2026-10-15T02:33:01Z",
+      "rows": 2504349,
+      "rows_written_actual": 196822,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "ed4e2880-9327-45d9-a8f8-6fd4db31e1ab",
@@ -264,15 +254,14 @@
   },
   "ID": {
     "addresses": {
+      "bookmark_before": "0000004d-00000000-000050e7-05a413ceac188a22d97496c586e58ce5",
       "db_id": "2c1e252b-6003-40a7-ae17-e6da87c20a57",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:30:09Z",
-      "rows": 1123869,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:40:09Z",
+      "rollback_deadline": "2026-10-15T02:38:14Z",
+      "rows": 1102107,
+      "rows_written_actual": 601540,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "2c1e252b-6003-40a7-ae17-e6da87c20a57",
@@ -288,15 +277,14 @@
   },
   "IL": {
     "addresses": {
+      "bookmark_before": "00000060-00000000-000050e7-b4ad1b13c357556a3288c614c3912679",
       "db_id": "18d7ae72-6b19-49cb-b816-1af844b404eb",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:35:45Z",
-      "rows": 7508729,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:38:25Z",
+      "rollback_deadline": "2026-10-15T02:40:17Z",
+      "rows": 7531863,
+      "rows_written_actual": 1217037,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "18d7ae72-6b19-49cb-b816-1af844b404eb",
@@ -312,15 +300,14 @@
   },
   "IN": {
     "addresses": {
+      "bookmark_before": "0000005d-00000000-000050e7-8992908dee1096444b90726d5036a720",
       "db_id": "c8b4cd4e-a4a0-4f6f-ab5d-c87d38e690cd",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:40:35Z",
-      "rows": 5962851,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:40:03Z",
+      "rollback_deadline": "2026-10-15T02:37:42Z",
+      "rows": 5857898,
+      "rows_written_actual": 590313,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "c8b4cd4e-a4a0-4f6f-ab5d-c87d38e690cd",
@@ -336,15 +323,14 @@
   },
   "KS": {
     "addresses": {
+      "bookmark_before": "00000054-00000000-000050e7-b18eb359d965f57b10aca31080cfba79",
       "db_id": "3a5c4d66-5841-4189-becd-28ef8b7e6f2a",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:32:12Z",
-      "rows": 1918567,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:33:55Z",
+      "rollback_deadline": "2026-10-15T02:33:07Z",
+      "rows": 1858184,
+      "rows_written_actual": 203255,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "3a5c4d66-5841-4189-becd-28ef8b7e6f2a",
@@ -360,15 +346,14 @@
   },
   "KY": {
     "addresses": {
+      "bookmark_before": "0000005a-00000000-000050e7-070d2f42009ca6a4a0ab9ca27c9bf05d",
       "db_id": "2f0526f7-1066-4c5a-a4cb-0115c41fec4f",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:42:32Z",
-      "rows": 4061073,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:39:35Z",
+      "rollback_deadline": "2026-10-15T02:36:41Z",
+      "rows": 4163489,
+      "rows_written_actual": 534745,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "2f0526f7-1066-4c5a-a4cb-0115c41fec4f",
@@ -384,15 +369,14 @@
   },
   "LA": {
     "addresses": {
+      "bookmark_before": "00000054-00000000-000050e7-599ef0cc0ef2ef141248589c4d7ffa24",
       "db_id": "a6b1c993-2eda-49ea-8653-2aa84018acbb",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:34:51Z",
-      "rows": 1862090,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:41:26Z",
+      "rollback_deadline": "2026-10-15T03:32:42Z",
+      "rows": 1893544,
+      "rows_written_actual": 1243123,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "a6b1c993-2eda-49ea-8653-2aa84018acbb",
@@ -408,15 +392,14 @@
   },
   "MA": {
     "addresses": {
+      "bookmark_before": "00000052-00000000-000050e7-2a1e38ae0179895ef208e8f3fbbe9dca",
       "db_id": "4a093d6d-0ec2-45c1-935f-668e29c9a67f",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:42:22Z",
-      "rows": 2940920,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:38:40Z",
+      "rollback_deadline": "2026-10-15T02:36:55Z",
+      "rows": 2960677,
+      "rows_written_actual": 544288,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "4a093d6d-0ec2-45c1-935f-668e29c9a67f",
@@ -432,15 +415,14 @@
   },
   "MD": {
     "addresses": {
+      "bookmark_before": "00000055-00000000-000050e7-2a6624ed03c97b9ddb84f4bee54ef7c3",
       "db_id": "e9cd31b1-4fb9-4884-8804-8d7cb78602b9",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:44:14Z",
-      "rows": 4237033,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:36:50Z",
+      "rollback_deadline": "2026-10-15T02:34:37Z",
+      "rows": 4256140,
+      "rows_written_actual": 263938,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "e9cd31b1-4fb9-4884-8804-8d7cb78602b9",
@@ -456,15 +438,14 @@
   },
   "ME": {
     "addresses": {
+      "bookmark_before": "0000004e-00000000-000050e7-b1dbec7611e7ff6d4ce6bc899ceaa4bc",
       "db_id": "00cf2464-3107-4d6e-a0b0-be11f6019519",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:42:37Z",
-      "rows": 945081,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:32:03Z",
+      "rollback_deadline": "2026-10-15T02:30:58Z",
+      "rows": 944872,
+      "rows_written_actual": 446,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "00cf2464-3107-4d6e-a0b0-be11f6019519",
@@ -480,15 +461,14 @@
   },
   "MI": {
     "addresses": {
+      "bookmark_before": "0000005c-00000000-000050e7-f71333ba2720106a9c51ed74ae6f59d7",
       "db_id": "a52b8a91-8ed8-4085-819d-fcd643e61102",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:47:44Z",
-      "rows": 5842218,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:57:57Z",
+      "rollback_deadline": "2026-10-15T03:42:06Z",
+      "rows": 5866481,
+      "rows_written_actual": 6714781,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "a52b8a91-8ed8-4085-819d-fcd643e61102",
@@ -504,15 +484,14 @@
   },
   "MN": {
     "addresses": {
+      "bookmark_before": null,
       "db_id": "ce7ea0bb-3baa-4225-bf99-e9d41519c234",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:46:16Z",
-      "rows": 3151251,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:44:00Z",
+      "rollback_deadline": "2026-10-15T03:36:40Z",
+      "rows": 3687754,
+      "rows_written_actual": 1385056,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "ce7ea0bb-3baa-4225-bf99-e9d41519c234",
@@ -528,15 +507,14 @@
   },
   "MO": {
     "addresses": {
+      "bookmark_before": "00000054-00000000-000050e7-3714db677cce81321eb1c00c3976f6d7",
       "db_id": "3d0c8fed-958d-4b7f-a2a7-44600b16f01a",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:49:14Z",
-      "rows": 4720315,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:35:37Z",
+      "rollback_deadline": "2026-10-15T02:33:52Z",
+      "rows": 4757237,
+      "rows_written_actual": 239235,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "3d0c8fed-958d-4b7f-a2a7-44600b16f01a",
@@ -552,15 +530,14 @@
   },
   "MS": {
     "addresses": {
+      "bookmark_before": "0000004f-00000000-000050e7-3e6d2d15f9ba60811e04df577f74a9eb",
       "db_id": "a2ff04c7-b258-4a58-8e4b-ff979e8bac4b",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:46:39Z",
-      "rows": 1865724,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:31:32Z",
+      "rollback_deadline": "2026-10-15T02:31:22Z",
+      "rows": 1866180,
+      "rows_written_actual": 9036,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "a2ff04c7-b258-4a58-8e4b-ff979e8bac4b",
@@ -576,15 +553,14 @@
   },
   "MT": {
     "addresses": {
+      "bookmark_before": "0000004f-00000000-000050e7-24e0b89e6f083cc061184ce2d66b0fbd",
       "db_id": "72686109-30c5-448a-87d9-758499ed287e",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:48:49Z",
-      "rows": 1564823,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:32:56Z",
+      "rollback_deadline": "2026-10-15T02:32:11Z",
+      "rows": 1566672,
+      "rows_written_actual": 47327,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "72686109-30c5-448a-87d9-758499ed287e",
@@ -600,15 +576,14 @@
   },
   "NC": {
     "addresses": {
+      "bookmark_before": "0000005a-00000000-000050e7-b6242f0fac835358c606ff54496d19b4",
       "db_id": "36afc75b-7145-4a20-bb3c-d8cd693e6d36",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:04:36Z",
-      "rows": 12540262,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T05:29:28Z",
+      "rollback_deadline": "2026-10-15T03:46:11Z",
+      "rows": 12660168,
+      "rows_written_actual": 24007790,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "36afc75b-7145-4a20-bb3c-d8cd693e6d36",
@@ -624,15 +599,14 @@
   },
   "ND": {
     "addresses": {
+      "bookmark_before": "00000050-00000000-000050e7-da7d2428f8c9dbd6128f5b185143a88c",
       "db_id": "3559dbbc-c64e-42af-b573-bb3e30d2bd9e",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:49:24Z",
-      "rows": 644307,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:33:25Z",
+      "rollback_deadline": "2026-10-15T02:32:15Z",
+      "rows": 646973,
+      "rows_written_actual": 66175,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "3559dbbc-c64e-42af-b573-bb3e30d2bd9e",
@@ -648,15 +622,14 @@
   },
   "NE": {
     "addresses": {
+      "bookmark_before": "0000004e-00000000-000050e7-27443f79761ba4344ea8d028fa8003a0",
       "db_id": "402c9e64-a95b-4f7d-b5a3-c6456791659b",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:51:18Z",
-      "rows": 1508883,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:32:16Z",
+      "rollback_deadline": "2026-10-15T02:31:36Z",
+      "rows": 1511585,
+      "rows_written_actual": 10350,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "402c9e64-a95b-4f7d-b5a3-c6456791659b",
@@ -672,15 +645,14 @@
   },
   "NH": {
     "addresses": {
+      "bookmark_before": "0000004f-00000000-000050e7-37f53046bbc282173be6f826d07fda8f",
       "db_id": "8c31d4ba-156a-4f8f-a0c4-73f31318b5fc",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:49:49Z",
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:31:39Z",
+      "rollback_deadline": "2026-10-15T02:30:51Z",
       "rows": 511617,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "rows_written_actual": 3,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "8c31d4ba-156a-4f8f-a0c4-73f31318b5fc",
@@ -696,15 +668,14 @@
   },
   "NJ": {
     "addresses": {
+      "bookmark_before": "00000061-00000000-000050e7-849e6c44dffbda806b25f8014269d827",
       "db_id": "d2d2077c-a1e5-4d8b-9411-c5c6d70801e3",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:00:42Z",
-      "rows": 6862307,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:42:00Z",
+      "rollback_deadline": "2026-10-15T03:33:23Z",
+      "rows": 6689643,
+      "rows_written_actual": 1285506,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "d2d2077c-a1e5-4d8b-9411-c5c6d70801e3",
@@ -720,15 +691,14 @@
   },
   "NM": {
     "addresses": {
+      "bookmark_before": "00000050-00000000-000050e7-cb166f41c5c24f557d1e128d69bf652a",
       "db_id": "d96eeca0-36e3-4964-9fc4-8dace011585e",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:53:44Z",
-      "rows": 2897702,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:33:16Z",
+      "rollback_deadline": "2026-10-15T02:32:20Z",
+      "rows": 2895102,
+      "rows_written_actual": 86275,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "d96eeca0-36e3-4964-9fc4-8dace011585e",
@@ -744,15 +714,14 @@
   },
   "NV": {
     "addresses": {
+      "bookmark_before": "0000004f-00000000-000050e7-230dc7e4abb7a0a20f8ebc0943f3afc0",
       "db_id": "fedcf70a-0539-4f72-975e-a60d4eafef76",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:53:02Z",
-      "rows": 1249045,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:41:01Z",
+      "rollback_deadline": "2026-10-15T02:40:07Z",
+      "rows": 1821655,
+      "rows_written_actual": 1183973,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "fedcf70a-0539-4f72-975e-a60d4eafef76",
@@ -768,15 +737,14 @@
   },
   "NY": {
     "addresses": {
+      "bookmark_before": "0000008a-00000000-000050e7-b8496a728ee723233f9a1048c8466e55",
       "db_id": "ebe04860-fcbc-4b99-acc1-4b8e37c538db",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:06:22Z",
-      "rows": 10110665,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:31:58Z",
+      "rollback_deadline": "2026-10-15T02:31:18Z",
+      "rows": 10110960,
+      "rows_written_actual": 4678,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "ebe04860-fcbc-4b99-acc1-4b8e37c538db",
@@ -792,15 +760,14 @@
   },
   "OH": {
     "addresses": {
+      "bookmark_before": "0000005a-00000000-000050e7-1fdcdd582baa4e2aeb82af6c0646d48f",
       "db_id": "1900f302-f797-4a55-af0c-656b9e6c9d46",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:08:10Z",
-      "rows": 10360818,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:34:28Z",
+      "rollback_deadline": "2026-10-15T02:32:54Z",
+      "rows": 10420844,
+      "rows_written_actual": 140579,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "1900f302-f797-4a55-af0c-656b9e6c9d46",
@@ -816,15 +783,14 @@
   },
   "OK": {
     "addresses": {
+      "bookmark_before": "00000052-00000000-000050e7-62d6b8ff5bf8aece747863d1dcb51987",
       "db_id": "47343557-9795-4da2-a01d-3e50f5e24146",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T22:57:04Z",
-      "rows": 2293700,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:32:29Z",
+      "rollback_deadline": "2026-10-15T02:31:44Z",
+      "rows": 2299391,
+      "rows_written_actual": 12833,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "47343557-9795-4da2-a01d-3e50f5e24146",
@@ -840,15 +806,14 @@
   },
   "OR": {
     "addresses": {
+      "bookmark_before": "00000052-00000000-000050e7-00ea84a3ccb0e745ff7e33fd27d695db",
       "db_id": "f5a426ee-f128-4210-af88-c4713cb1145e",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:00:15Z",
-      "rows": 3513245,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:36:35Z",
+      "rollback_deadline": "2026-10-15T02:34:55Z",
+      "rows": 3501768,
+      "rows_written_actual": 316842,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "f5a426ee-f128-4210-af88-c4713cb1145e",
@@ -864,15 +829,14 @@
   },
   "PA": {
     "addresses": {
+      "bookmark_before": "0000005e-00000000-000050e7-31d5ec76f2cf588544e11c50becd5fdc",
       "db_id": "86f0d8db-f7a7-4abf-bf1c-e329a111fd34",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:06:58Z",
-      "rows": 6313714,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:51:24Z",
+      "rollback_deadline": "2026-10-15T03:41:39Z",
+      "rows": 6334251,
+      "rows_written_actual": 3277284,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "86f0d8db-f7a7-4abf-bf1c-e329a111fd34",
@@ -888,15 +852,14 @@
   },
   "RI": {
     "addresses": {
+      "bookmark_before": "0000004e-00000000-000050e7-1bfb459ba78d2db7f97a0e8d9d513149",
       "db_id": "3a445ace-2e17-4b5e-9ab3-c7cd952b3fac",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:02:40Z",
-      "rows": 817591,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:34:37Z",
+      "rollback_deadline": "2026-10-15T02:33:28Z",
+      "rows": 827784,
+      "rows_written_actual": 223149,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "3a445ace-2e17-4b5e-9ab3-c7cd952b3fac",
@@ -912,15 +875,14 @@
   },
   "SC": {
     "addresses": {
+      "bookmark_before": "00000051-00000000-000050e7-a9e8592129d5c56885191c34b5e1aaeb",
       "db_id": "88d98966-c0d8-48a3-b098-6135123f443d",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:07:26Z",
-      "rows": 4099779,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:33:10Z",
+      "rollback_deadline": "2026-10-15T02:38:50Z",
+      "rows": 4166098,
+      "rows_written_actual": 601850,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "88d98966-c0d8-48a3-b098-6135123f443d",
@@ -936,15 +898,14 @@
   },
   "SD": {
     "addresses": {
+      "bookmark_before": "0000004e-00000000-000050e7-f09884ad4ff5ebf4765965d4b4b5cc24",
       "db_id": "d510fdac-703b-4744-a6c9-bdb14f1ed3e8",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:03:23Z",
-      "rows": 449511,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:32:37Z",
+      "rollback_deadline": "2026-10-15T02:32:06Z",
+      "rows": 447739,
+      "rows_written_actual": 43624,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "d510fdac-703b-4744-a6c9-bdb14f1ed3e8",
@@ -960,15 +921,14 @@
   },
   "TN": {
     "addresses": {
+      "bookmark_before": "0000004f-00000000-000050e7-982ac283b4391f6ca8d62446a26adc92",
       "db_id": "f94bd6f1-9ea0-43ec-8435-33a59b9eeca2",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:12:10Z",
-      "rows": 6986933,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:35:54Z",
+      "rollback_deadline": "2026-10-15T02:34:02Z",
+      "rows": 7014551,
+      "rows_written_actual": 240870,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "f94bd6f1-9ea0-43ec-8435-33a59b9eeca2",
@@ -984,15 +944,14 @@
   },
   "TX": {
     "addresses": {
+      "bookmark_before": "00000067-00000000-000050e7-d22dc194cbf6007056a63c7d48f067cf",
       "db_id": "b474726c-2b02-4b52-9a9e-1f728ccf8d6e",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:39:40Z",
-      "rows": 31635096,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:45:52Z",
+      "rollback_deadline": "2026-10-15T03:37:17Z",
+      "rows": 31684574,
+      "rows_written_actual": 1634182,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "b474726c-2b02-4b52-9a9e-1f728ccf8d6e",
@@ -1008,15 +967,14 @@
   },
   "UT": {
     "addresses": {
+      "bookmark_before": "0000004f-00000000-000050e7-4522482850cccdcd3e14e8d87d079272",
       "db_id": "b3409ea6-3ad3-4429-92e4-a878ca9bfcb2",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:11:06Z",
-      "rows": 1830750,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:37:19Z",
+      "rollback_deadline": "2026-10-15T02:35:58Z",
+      "rows": 1843977,
+      "rows_written_actual": 412475,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "b3409ea6-3ad3-4429-92e4-a878ca9bfcb2",
@@ -1032,15 +990,14 @@
   },
   "VA": {
     "addresses": {
+      "bookmark_before": "00000056-00000000-000050e7-74edc9b8f90ed4e4ec921d9bfee4980f",
       "db_id": "8c625ef7-524d-4f2d-99d1-fddb8d2fddd0",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:17:18Z",
-      "rows": 8307935,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:35:27Z",
+      "rollback_deadline": "2026-10-15T02:33:23Z",
+      "rows": 8284304,
+      "rows_written_actual": 211977,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "8c625ef7-524d-4f2d-99d1-fddb8d2fddd0",
@@ -1056,15 +1013,14 @@
   },
   "VT": {
     "addresses": {
+      "bookmark_before": "0000004d-00000000-000050e7-7fa0b37f46f3c7a8405a0d17a9e30262",
       "db_id": "c6ace339-d348-4c73-b771-9e881122ac7c",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:10:20Z",
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:32:04Z",
+      "rollback_deadline": "2026-10-15T02:30:55Z",
       "rows": 896089,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "rows_written_actual": 20,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "c6ace339-d348-4c73-b771-9e881122ac7c",
@@ -1080,15 +1036,14 @@
   },
   "WA": {
     "addresses": {
+      "bookmark_before": "00000050-00000000-000050e7-e29b2764ad3016de26830c18e0142c49",
       "db_id": "9cb85cf5-5a85-40f0-9df2-eb3a480d59a8",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:16:58Z",
-      "rows": 6289183,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T03:36:48Z",
+      "rollback_deadline": "2026-10-15T02:39:45Z",
+      "rows": 6293622,
+      "rows_written_actual": 810567,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "9cb85cf5-5a85-40f0-9df2-eb3a480d59a8",
@@ -1104,39 +1059,36 @@
   },
   "WI": {
     "addresses": {
+      "bookmark_before": "00000054-00000002-000050e7-4a85109bbedecb69efa9f754dd5d849a",
       "db_id": "1dd3a893-5ca3-492b-af5a-95fb849318e0",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:16:43Z",
-      "rows": 6013672,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T04:27:54Z",
+      "rollback_deadline": "2026-10-15T03:44:08Z",
+      "rows": 6507720,
+      "rows_written_actual": 9997849,
+      "version": "2026-09-oa"
     },
     "segments": {
+      "bookmark_before": "00000056-00000000-000050e7-4270fc592616441ca7f99dde4b8c7853",
       "db_id": "1dd3a893-5ca3-492b-af5a-95fb849318e0",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:17:47Z",
-      "rows": 616418,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T05:30:22Z",
+      "rollback_deadline": "2026-10-15T05:30:19Z",
+      "rows": 616668,
+      "rows_written_actual": 501,
+      "version": "2026-09"
     }
   },
   "WV": {
     "addresses": {
+      "bookmark_before": "00000050-00000000-000050e7-c4a11fb4396e250259c7f10e66cc89b4",
       "db_id": "4e2c3614-214d-4f18-b929-3aaeb6386b4c",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:13:35Z",
-      "rows": 2127701,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:37:46Z",
+      "rollback_deadline": "2026-10-15T02:35:44Z",
+      "rows": 2039608,
+      "rows_written_actual": 389870,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "4e2c3614-214d-4f18-b929-3aaeb6386b4c",
@@ -1152,15 +1104,14 @@
   },
   "WY": {
     "addresses": {
+      "bookmark_before": "0000004d-00000000-000050e7-1ae6c763f3283e8adab7e8c9e9b416cb",
       "db_id": "fc52aff8-bb3b-4472-b93f-a88982926416",
-      "duplicate_rows": 0,
-      "id_block_base": 0,
-      "loaded_at": null,
-      "mirror_exported_at": "2026-09-14T23:13:51Z",
-      "rows": 650065,
-      "rows_written_actual": null,
-      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
-      "version": "2026-06"
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-15T02:38:10Z",
+      "rollback_deadline": "2026-10-15T02:36:21Z",
+      "rows": 653954,
+      "rows_written_actual": 455300,
+      "version": "2026-09-oa"
     },
     "segments": {
       "db_id": "fc52aff8-bb3b-4472-b93f-a88982926416",
