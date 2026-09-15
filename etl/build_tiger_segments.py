@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build per-state TIGER street-segment CSVs from per-state edges-geodatabase.
 
-Input:  data/v2/tiger-gdb/<STATE>_edges.gdb.zip
+Input:  data/v2/tiger-gdb/<STATE>_edges.gdb.zip            (--vintage TGRGDB24, default)
+        data/v2/tiger-gdb/<vintage>/<STATE>_edges.gdb.zip  (newer vintages)
         Single layer `All_Lines` with TLID + FULLNAME + LFROMADD/LTOADD +
         RFROMADD/RTOADD + ZIPL/ZIPR + MTFCC + geometry.
 
@@ -23,6 +24,8 @@ from pathlib import Path
 import fiona
 
 from etl.config import DATA
+from etl.fetch_tiger import DEFAULT_VINTAGE, VINTAGES
+from etl.fetch_tiger import tiger_gdb_path as _tiger_gdb_path
 from etl.states import BY_CODE
 
 
@@ -74,8 +77,9 @@ def segments_csv(version: str, state_code: str) -> Path:
     return p / f"{state_code}.csv"
 
 
-def tiger_gdb_path(state_code: str) -> Path:
-    return DATA / "tiger-gdb" / f"{state_code}_edges.gdb.zip"
+def tiger_gdb_path(state_code: str, vintage: str = DEFAULT_VINTAGE) -> Path:
+    """Same layout as etl.fetch_tiger (flat for TGRGDB24, per-vintage dir otherwise)."""
+    return _tiger_gdb_path(state_code, vintage)
 
 
 def log(msg: str) -> None:
@@ -99,8 +103,8 @@ def linestring_endpoints(geom) -> tuple[tuple[float, float], tuple[float, float]
     return None
 
 
-def build_state(state_code: str, version: str) -> int:
-    gdb = tiger_gdb_path(state_code)
+def build_state(state_code: str, version: str, vintage: str = DEFAULT_VINTAGE) -> int:
+    gdb = tiger_gdb_path(state_code, vintage)
     if not gdb.exists():
         return 0
     out_path = segments_csv(version, state_code)
@@ -160,12 +164,14 @@ def build_state(state_code: str, version: str) -> int:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
+    ap.add_argument("--vintage", choices=VINTAGES, default=DEFAULT_VINTAGE,
+                    help="TIGER geodatabase release to read (default: %(default)s)")
     ap.add_argument("states", nargs="*")
     args = ap.parse_args(argv)
     states = args.states if args.states else sorted(BY_CODE)
     total = 0
     for s in states:
-        total += build_state(s, args.version)
+        total += build_state(s, args.version, args.vintage)
     log(f"done: {total:,} segments across {len(states)} states")
     return 0
 

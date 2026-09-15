@@ -1,0 +1,101 @@
+name: Refresh (detect upstream changes)
+
+# Weekly, no-download check of whether NAD / TIGER / OpenAddresses / OSM
+# changed since the fingerprints committed in state/upstream-snapshot.json.
+# On change it opens (or comments on) a "Quarterly refresh" issue.
+#
+# Deliberately detect-only: the actual fetch + build + D1 load stays manual
+# (refresh.sh from the maintainer's machine). Do not add a load/deploy job here.
+
+on:
+  schedule:
+    - cron: '0 13 * * 1'   # Mondays 13:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: refresh-detect
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SNAPSHOT: state/upstream-snapshot.json
+      REPORT: state/upstream-report.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: python3 -m pip install --quiet requests
+
+      - name: Check upstream sources
+        id: check
+        shell: bash
+        run: |
+          set -u
+          if [ ! -f "$SNAPSHOT" ]; then
+            echo "::warning::$SNAPSHOT is not committed; this run only records a baseline and cannot detect changes."
+            echo "Create it on the maintainer machine with:" \
+                 "python3 -m etl.check_upstream --seed-local --snapshot $SNAPSHOT" \
+                 "and commit it."
+          fi
+          set +e
+          python3 -m etl.check_upstream --snapshot "$SNAPSHOT" --out "$REPORT" --quiet > summary.md
+          rc=$?
+          set -e
+          echo "exit code: $rc"
+          cat summary.md
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+          # 0 = no change, 3 = change detected (handled below), anything else = error.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+            exit "$rc"
+          fi
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-report-${{ github.run_id }}
+          path: |
+            state/upstream-report.json
+            state/upstream-snapshot.json
+            summary.md
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Open or update refresh issue
+        if: steps.check.outputs.rc == '3'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: "Quarterly refresh: upstream changed ${{ steps.check.outputs.month }}"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          {
+            cat summary.md
+            echo
+            echo "Workflow run (report artifact attached): $RUN_URL"
+          } > body.md
+          # Exact-title match among open issues; the search is fuzzy, so filter client-side.
+          existing=$(gh issue list --state open --limit 50 --search "in:title \"$TITLE\"" \
+                       --json number,title \
+                       --jq '[.[] | select(.title == env.TITLE)][0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "commenting on existing issue #$existing"
+            gh issue comment "$existing" --body-file body.md
+          else
+            echo "creating issue: $TITLE"
+            gh issue create --title "$TITLE" --body-file body.md
+          fi

@@ -1,0 +1,10 @@
+{
+  "A_ins": 2.0,
+  "A_del": 2.0,
+  "S_ins": 2.0,
+  "S_del": 2.0,
+  "changes_per_ins": 3.0,
+  "replay_free": true,
+  "source": "d1_probes 2026-09-14T21:29:12Z on scratch db a725ff8f-b42d-41d2-a5c9-e7d66d1325bf",
+  "metering_model": "workerd (2.0)"
+}

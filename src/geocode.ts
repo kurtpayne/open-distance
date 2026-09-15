@@ -45,7 +45,7 @@ async function queryShard(db: D1Database, ftsQuery: string): Promise<
       .prepare(
         "SELECT a.lat AS lat, a.lon AS lon, a.normalized AS normalized, a.tier AS tier " +
         "FROM addr_fts JOIN addresses a ON a.id = addr_fts.rowid " +
-        "WHERE addr_fts MATCH ? ORDER BY rank LIMIT 1",
+        "WHERE addr_fts MATCH ? ORDER BY rank, (a.tier = 'rooftop') DESC, a.id LIMIT 1",
       )
       .bind(ftsQuery)
       .first<{ lat: number; lon: number; normalized: string; tier: string }>();
@@ -56,7 +56,7 @@ async function queryShard(db: D1Database, ftsQuery: string): Promise<
 
 export async function geocode(
   q: string,
-  env: { CACHE: KVNamespace; DATA_VERSION: string } & ShardEnv,
+  env: { CACHE: KVNamespace; DATA_VERSION: string; GEO_VERSION?: string } & ShardEnv,
 ): Promise<GeocodeResult> {
   const cm = q.match(COORD_RE);
   if (cm) {
@@ -78,7 +78,9 @@ export async function geocode(
 
   // Prefix bumps invalidate stale entries; also: only cache OK results
   // (see below) so partial-data NOT_FOUNDs don't stick around.
-  const cacheKey = `geo4:${env.DATA_VERSION}:${await sha1Hex(norm)}`;
+  // GEO_VERSION versions only this cache (bumped after a D1 address refresh);
+  // DATA_VERSION stays tied to R2 tile paths. Falls back to DATA_VERSION.
+  const cacheKey = `geo4:${env.GEO_VERSION ?? env.DATA_VERSION}:${await sha1Hex(norm)}`;
   const hit = await env.CACHE.get(cacheKey, "json") as GeocodeResult | null;
   if (hit) return hit;
 

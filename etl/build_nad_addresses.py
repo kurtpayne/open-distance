@@ -126,11 +126,30 @@ def log(msg: str) -> None:
     print(f"[nad] {msg}", flush=True)
 
 
+def resolve_inner(z: zipfile.ZipFile, inner: str) -> str:
+    """Name of the CSV entry inside the ZIP.
+
+    `auto` picks the single TXT/*.txt entry (the release renames it per
+    revision, e.g. TXT/NAD_r22.txt); an explicit name is used as-is.
+    """
+    names = z.namelist()
+    if inner != "auto":
+        if inner not in names:
+            raise ValueError(f"entry {inner} not in zip")
+        return inner
+    cands = [n for n in names if n.startswith("TXT/") and n.endswith(".txt") and n.count("/") == 1]
+    if len(cands) != 1:
+        raise ValueError(f"--inner auto: expected exactly one TXT/*.txt entry, found {cands or 'none'}")
+    log(f"  --inner auto -> {cands[0]}")
+    return cands[0]
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
     ap.add_argument("--zip", required=True, help="Path to NAD ZIP")
-    ap.add_argument("--inner", default="TXT/NAD_r22.txt", help="Name of the CSV entry inside the ZIP")
+    ap.add_argument("--inner", default="auto",
+                    help="Name of the CSV entry inside the ZIP (default: auto = the single TXT/*.txt entry)")
     ap.add_argument("--states", nargs="*", help="Optional state code filter (default: all in BY_CODE)")
     ap.add_argument("--limit", type=int, default=0, help="Optional row limit for testing")
     args = ap.parse_args(argv)
@@ -144,17 +163,19 @@ def main(argv: list[str]) -> int:
 
     log(f"opening {zip_path}")
     with zipfile.ZipFile(zip_path) as z:
-        if args.inner not in z.namelist():
-            log(f"ERROR: entry {args.inner} not in zip")
+        try:
+            inner = resolve_inner(z, args.inner)
+        except ValueError as e:
+            log(f"ERROR: {e}")
             return 1
-        info = z.getinfo(args.inner)
+        info = z.getinfo(inner)
         log(f"  entry size: {info.file_size/1e9:.1f} GB")
 
         writers: dict[str, csv.writer] = {}
         files: dict[str, io.TextIOBase] = {}
         counts: dict[str, int] = {}
 
-        with z.open(args.inner) as raw:
+        with z.open(inner) as raw:
             # Wrap with BufferedReader for fast reads, then TextIOWrapper.
             buffered = io.BufferedReader(raw, buffer_size=8 * 1024 * 1024)  # 8 MB read buffer
             text = io.TextIOWrapper(buffered, encoding="utf-8-sig", errors="replace")

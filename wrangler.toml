@@ -5,6 +5,7 @@ account_id = "b5cdaad4db136b796354280697e0ceb9"
 
 [vars]
 DATA_VERSION = "2026-06"
+GEO_VERSION = "2026-06"                       # versions only the KV geocode cache key; bump after a D1 address refresh (DATA_VERSION stays tied to R2 tiles)
 # --- Operator-tunable knobs (self-hosters: change config here, not code) ------
 RL_PER_SEC = "5"                              # per-IP requests/second (burst guard, charged 1/req); 0 disables
 RL_ELEMENTS_PER_DAY = "2500"                  # per-IP elements/day (elements = origins×destinations); falls back to legacy RL_PER_DAY; 0 disables

@@ -7,8 +7,12 @@ set -euo pipefail
 VERSION="${1:?usage: publish_manifest.sh <VERSION>}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# KV namespace id for OD_API_CACHE (also used as manifest store).
-KV_ID=$(grep -E 'id = "[0-9a-f]{32}"' "$ROOT/wrangler.toml" | head -1 | grep -oE '[0-9a-f]{32}')
+# KV namespace id for OD_API_CACHE (also used as manifest store): the first
+# `id = "..."` after the [[kv_namespaces]] header (not the top-level account_id).
+KV_ID=$(awk '/^\[\[kv_namespaces\]\]/ {in_kv=1; next}
+             in_kv && /^[[:space:]]*id[[:space:]]*=/ { if (match($0, /[0-9a-f]{32}/)) { print substr($0, RSTART, RLENGTH); exit } }' \
+        "$ROOT/wrangler.toml")
+[[ -n "$KV_ID" ]] || { echo "[publish] ERROR: no [[kv_namespaces]] id found in wrangler.toml" >&2; exit 1; }
 
 # State coverage = whatever address shards we just built.
 ADDR_DIR="$ROOT/data/v2/out/$VERSION/addresses"
@@ -32,9 +36,8 @@ echo "[publish] manifest:"
 echo "$MANIFEST"
 
 # Stash in KV under "manifest:active" key (future use; Worker not yet reading it).
-echo "$MANIFEST" | wrangler kv key put --namespace-id "$KV_ID" --remote "manifest:active" --path /dev/stdin >/dev/null 2>&1 \
-  && echo "[publish] wrote manifest:active to KV" \
-  || echo "[publish] WARN: could not write to KV (continuing)"
+echo "$MANIFEST" | wrangler kv key put --namespace-id "$KV_ID" --remote "manifest:active" --path /dev/stdin >/dev/null
+echo "[publish] wrote manifest:active to KV"
 
 # Publish the per-source OpenAddresses attribution manifest so the Worker can
 # serve it at /attribution/openaddresses.json. Required by OA's redistribution
@@ -42,9 +45,8 @@ echo "$MANIFEST" | wrangler kv key put --namespace-id "$KV_ID" --remote "manifes
 # source). Written by etl/fetch_oa.py during the fetch stage.
 OA_ATTR="$ROOT/data/v2/oa/attribution.json"
 if [[ -f "$OA_ATTR" ]]; then
-  wrangler kv key put --namespace-id "$KV_ID" --remote "attribution:openaddresses" --path "$OA_ATTR" >/dev/null 2>&1 \
-    && echo "[publish] wrote attribution:openaddresses to KV ($(wc -c < "$OA_ATTR" | tr -d ' ') bytes)" \
-    || echo "[publish] WARN: could not write attribution:openaddresses (continuing)"
+  wrangler kv key put --namespace-id "$KV_ID" --remote "attribution:openaddresses" --path "$OA_ATTR" >/dev/null
+  echo "[publish] wrote attribution:openaddresses to KV ($(wc -c < "$OA_ATTR" | tr -d ' ') bytes)"
 else
   echo "[publish] NOTE: $OA_ATTR missing -- rerun fetch_oa to populate."
 fi

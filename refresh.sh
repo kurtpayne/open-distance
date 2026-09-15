@@ -83,6 +83,36 @@ write_version() {
 }
 
 # ---------------------------------------------------------------------------
+# preflight guards
+# ---------------------------------------------------------------------------
+# Refuse to rebuild into a version directory that the delta-refresh pipeline
+# has already loaded into D1 (state/fingerprints.json lists it for some state).
+assert_version_not_loaded() {
+  local v="$1"
+  local fp="$ROOT/state/fingerprints.json"
+  [[ -f "$fp" ]] || return 0
+  ensure_venv >/dev/null
+  local loaded
+  loaded=$(PYTHONPATH="$ROOT" "$VENV/bin/python3" -c \
+    "import sys; from etl.legacy_guard import states_with_version; print(' '.join(states_with_version(sys.argv[1])))" "$v")
+  if [[ -n "$loaded" ]]; then
+    die "version $v is already loaded into D1 (states: $loaded); bump data/v2/version.txt"
+  fi
+}
+
+# Address build needs tens of GB of scratch (NAD slice + per-state CSVs).
+assert_free_space() {
+  local min_gb="${OD_MIN_FREE_GB:-60}"
+  local free_kb free_gb
+  free_kb=$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')
+  free_gb=$(( free_kb / 1024 / 1024 ))
+  log "free space on $ROOT volume: ${free_gb} GB (min ${min_gb} GB)"
+  if (( free_gb < min_gb )); then
+    die "only ${free_gb} GB free (< ${min_gb} GB); free space or set OD_MIN_FREE_GB"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # state list resolution
 # ---------------------------------------------------------------------------
 all_states() {
@@ -107,7 +137,7 @@ ensure_venv() {
     "$VENV/bin/python3" -m pip install --quiet osmium numpy requests aiohttp fiona
   fi
   command -v osmium >/dev/null 2>&1 || die "osmium CLI missing (brew install osmium-tool)"
-  command -v wrangler >/dev/null 2>&1 || die "wrangler missing (npm i -g wrangler)"
+  command -v wrangler >/dev/null 2>&1 || [[ -x "$ROOT/node_modules/.bin/wrangler" ]] || die "wrangler missing (npm install, or npm i -g wrangler)"
   log "setup OK"
 }
 
@@ -159,6 +189,7 @@ stage_tiles() {
   ensure_venv
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
+  assert_version_not_loaded "$v"
   log "tiles ($v): $states"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_tiles --version "$v" $states 2>&1 | tee -a "$LOG_DIR/tiles.log"
 }
@@ -181,14 +212,24 @@ stage_addresses() {
   ensure_venv
   local states; states=$(resolve_states "$@")
   local v; v=$(read_version)
-  local nad_zip="$DATA_V2/nad/nad-txt.zip"
+  assert_version_not_loaded "$v"
+  assert_free_space
+  # NAD ZIP: $OD_NAD_ZIP, else the canonical fetch target, else the newest
+  # release-named archive (nad-txt-2026q1.zip etc.) already on disk.
+  local nad_zip="${OD_NAD_ZIP:-$DATA_V2/nad/nad-txt.zip}"
   if [[ ! -f "$nad_zip" ]]; then
-    log "ERROR: NAD ZIP missing at $nad_zip. Run: refresh.sh fetch"
-    return 1
+    local newest
+    newest=$(ls -t "$DATA_V2"/nad/nad-txt*.zip 2>/dev/null | head -1 || true)
+    if [[ -z "$newest" ]]; then
+      log "ERROR: NAD ZIP missing at $nad_zip (and no data/v2/nad/nad-txt*.zip). Run: refresh.sh fetch"
+      return 1
+    fi
+    log "NAD ZIP $nad_zip missing; falling back to $newest"
+    nad_zip="$newest"
   fi
-  log "addresses ($v): NAD national slice -> per-state .nad.csv ($states)"
+  log "addresses ($v): NAD national slice from $nad_zip -> per-state .nad.csv ($states)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_nad_addresses \
-    --version "$v" --zip "$nad_zip" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
+    --version "$v" --zip "$nad_zip" --states $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
   log "addresses ($v): OA per-source -> per-state .oa.csv ($states)"
   PYTHONPATH="$ROOT" "$VENV/bin/python3" -m etl.build_oa_addresses \
     --version "$v" $states 2>&1 | tee -a "$LOG_DIR/addresses.log"
@@ -243,6 +284,7 @@ stage_publish() {
 stage_all() {
   local states; states=$(resolve_states "$@")
   local v; v=$(date -u +%Y-%m)
+  assert_version_not_loaded "$v"
   write_version "$v"
   log "==== refresh.sh all v=$v states=$states ===="
   stage_setup

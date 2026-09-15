@@ -7,7 +7,10 @@ Filters to layer=addresses, source path starts with 'us/'. For each source:
   - Fetch job metadata to get the S3 GeoJSON URL.
   - Download the gzipped GeoJSON.LD to data/v2/oa/<state>/<source-slug>.geojson.gz
 
-Idempotent: skip files that already exist with non-trivial size.
+Idempotent: skip files that already exist with non-trivial size. With
+--changed-only, instead compare each run's API `job`/`size` against
+data/v2/oa/sources.json (written at the end of every run) and re-download only
+sources that are new, changed upstream, or missing locally.
 
 This pulls many small downloads (~2,300 sources for US). Uses a small thread
 pool to keep it brisk without hammering the OA infra.
@@ -28,6 +31,7 @@ from etl.config import DATA
 
 OA_API = "https://batch.openaddresses.io/api/data"
 OA_DIR = DATA / "oa"
+SOURCES_JSON = OA_DIR / "sources.json"  # {source: {job, size, updated}} from the last run
 MIN_BYTES = 4 * 1024  # skip downloads smaller than this (broken/empty)
 
 
@@ -170,25 +174,49 @@ def slugify(src: str) -> tuple[str, str]:
     return state, slug
 
 
-def download_one(run: dict, force: bool = False) -> tuple[str, str, int, bool]:
-    src = run["source"]
-    job = run["job"]
-    state, slug = slugify(src)
-    out_dir = OA_DIR / state
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"{slug}.geojson.gz"
-    if not force and out.exists() and out.stat().st_size > MIN_BYTES:
-        return (state, slug, out.stat().st_size, False)
+def load_sources_json() -> dict:
+    if not SOURCES_JSON.exists():
+        return {}
+    try:
+        return json.loads(SOURCES_JSON.read_text())
+    except ValueError:
+        return {}
 
-    # Resolve job -> s3 URL via the OA job endpoint.
-    job_url = f"https://batch.openaddresses.io/api/job/{job}"
-    meta = requests.get(job_url, headers={"User-Agent": "open-distance/1.0"}, timeout=60).json()
-    s3 = meta.get("s3")
-    if not s3 or not s3.startswith("s3://v2.openaddresses.io/"):
-        return (state, slug, 0, False)
-    # Map s3://v2.openaddresses.io/<key> -> https://v2.openaddresses.io/<key>
-    url = "https://v2.openaddresses.io/" + s3[len("s3://v2.openaddresses.io/"):]
-    tmp = out.with_suffix(out.suffix + ".part")
+
+def write_sources_json(runs: list[dict]) -> None:
+    recorded = {
+        r["source"]: {"job": r.get("job"), "size": r.get("size"), "updated": r.get("updated")}
+        for r in runs
+    }
+    OA_DIR.mkdir(parents=True, exist_ok=True)
+    SOURCES_JSON.write_text(json.dumps(recorded, indent=1, sort_keys=True))
+    log(f"  wrote {len(recorded)} sources -> {SOURCES_JSON}")
+
+
+def needs_download(run: dict, out: Path, prev: dict) -> bool:
+    """--changed-only: fetch if missing locally, or upstream size/job changed."""
+    if not out.exists() or out.stat().st_size <= MIN_BYTES:
+        return True
+    rec = prev.get(run["source"]) or {}
+    size = run.get("size")
+    if size is not None and size != out.stat().st_size:
+        return True
+    return rec.get("job") != run.get("job")
+
+
+def verify_gzip(path: Path) -> None:
+    """Read the whole archive; raise if it is truncated or has trailing garbage
+    (a half-written or concatenated file silently loses features downstream)."""
+    import gzip
+    with open(path, "rb") as raw:
+        with gzip.GzipFile(fileobj=raw) as g:
+            while g.read(8 * 1024 * 1024):
+                pass
+        if raw.read(1):
+            raise ValueError("trailing garbage after gzip stream")
+
+
+def _stream_to(url: str, out: Path, tmp: Path, state: str, slug: str) -> tuple[str, str, int, bool]:
     with requests.get(url, stream=True, timeout=300, allow_redirects=True,
                       headers={"User-Agent": "open-distance/1.0"}) as r:
         r.raise_for_status()
@@ -196,7 +224,56 @@ def download_one(run: dict, force: bool = False) -> tuple[str, str, int, bool]:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     f.write(chunk)
-    tmp.rename(out)
+    try:
+        verify_gzip(tmp)
+    except Exception as e:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"{state}/{slug}: downloaded archive failed integrity check: {e}") from e
+    tmp.replace(out)
+    return (state, slug, out.stat().st_size, True)
+
+
+def download_one(run: dict, force: bool = False, prev: dict | None = None) -> tuple[str, str, int, bool]:
+    src = run["source"]
+    job = run["job"]
+    state, slug = slugify(src)
+    out_dir = OA_DIR / state
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{slug}.geojson.gz"
+    if prev is not None:
+        if not needs_download(run, out, prev):
+            return (state, slug, out.stat().st_size, False)
+    elif not force and out.exists() and out.stat().st_size > MIN_BYTES:
+        return (state, slug, out.stat().st_size, False)
+
+    # The public output path (302 -> signed object URL). Since 2026-09 the job
+    # metadata no longer exposes an `s3` field and the /api/job/{id}/output
+    # endpoint requires a login, but this path is still open.
+    url = f"https://v2.openaddresses.io/batch-prod/job/{job}/source.geojson.gz"
+    tmp = out.with_suffix(out.suffix + f".{job}.part")  # per-job temp: no two runs share a temp file
+    with requests.get(url, stream=True, timeout=300, allow_redirects=True,
+                      headers={"User-Agent": "open-distance/1.0"}) as r:
+        if r.status_code in (403, 404):
+            # Fall back to the legacy job-metadata s3 pointer, if present.
+            meta = requests.get(f"https://batch.openaddresses.io/api/job/{job}",
+                                headers={"User-Agent": "open-distance/1.0"}, timeout=60).json()
+            s3 = meta.get("s3") or ""
+            if not s3.startswith("s3://v2.openaddresses.io/"):
+                log(f"  {src}: no downloadable output (http {r.status_code}); skipped")
+                return (state, slug, 0, False)
+            url = "https://v2.openaddresses.io/" + s3[len("s3://v2.openaddresses.io/"):]
+            return _stream_to(url, out, tmp, state, slug)
+        r.raise_for_status()
+        with open(tmp, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    f.write(chunk)
+    try:
+        verify_gzip(tmp)
+    except Exception as e:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"{src}: downloaded archive failed integrity check: {e}") from e
+    tmp.replace(out)
     return (state, slug, out.stat().st_size, True)
 
 
@@ -205,6 +282,12 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--states", nargs="*", help="Optional state code filter (uppercase)")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument(
+        "--changed-only",
+        action="store_true",
+        help="Download only sources that are missing locally or whose API "
+             f"job/size differs from {SOURCES_JSON.relative_to(DATA.parent.parent)}.",
+    )
     ap.add_argument(
         "--metadata-only",
         action="store_true",
@@ -224,12 +307,28 @@ def main(argv: list[str]) -> int:
         log("metadata-only: skipping GeoJSON downloads.")
         return 0
 
+    # The run list can carry the same source more than once (e.g. two layers or
+    # a re-run); keep one run per source (newest `updated`) so two threads never
+    # write the same local file and sources.json matches the bytes on disk.
+    by_src: dict[str, dict] = {}
+    for r in runs:
+        cur = by_src.get(r["source"])
+        if cur is None or (r.get("updated") or "") > (cur.get("updated") or ""):
+            by_src[r["source"]] = r
+    if len(by_src) != len(runs):
+        log(f"  deduped {len(runs)} runs -> {len(by_src)} sources")
+    runs = list(by_src.values())
+
     OA_DIR.mkdir(parents=True, exist_ok=True)
+    prev = None
+    if args.changed_only:
+        prev = load_sources_json()
+        log(f"  changed-only: {len(prev)} sources recorded in {SOURCES_JSON}")
     start = time.time()
     done = 0
     bytes_dl = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futs = {ex.submit(download_one, r, args.force): r for r in runs}
+        futs = {ex.submit(download_one, r, args.force, prev): r for r in runs}
         for fut in concurrent.futures.as_completed(futs):
             try:
                 state, slug, size, downloaded = fut.result()
@@ -244,6 +343,7 @@ def main(argv: list[str]) -> int:
                 elapsed = time.time() - start
                 log(f"  {done}/{len(runs)}  total_new={bytes_dl/1e9:.2f} GB  elapsed={elapsed:.0f}s")
     log(f"done in {time.time()-start:.0f}s; new bytes downloaded: {bytes_dl/1e9:.2f} GB")
+    write_sources_json(runs)
     return 0
 
 

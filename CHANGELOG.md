@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Delta data refresh (no more DROP+reload).** Quarterly refreshes now apply a
+  row-level delta per shard with `etl.sync_d1`: read every shard back into a
+  local mirror once (`etl.export_d1_mirror`, rows read only), diff the new CSVs
+  against that mirror, `INSERT OR IGNORE` new rows with explicit ids (per-quarter
+  id block, all < 2^53) and `DELETE` vanished rows by id through new FTS5
+  delete/update triggers. Resumable checkpoints, Time Travel bookmark per shard,
+  mirror-based count verification, and hard gates (key-correctness, 50% churn,
+  `--max-rows`). Measured on a scratch D1 database: 2 rows written per address
+  insert or delete, FTS5 shadow rows not metered, identical-statement replays
+  free, `DROP TABLE` free, multi-statement requests atomic. A full reload is
+  ~510M rows (~$460); a typical delta fits inside the 50M/month included rows.
+- **Legacy loaders guarded.** `etl.load_d1_parallel` / `etl.load_d1_segments`
+  refuse to run against any shard listed in `state/fingerprints.json` unless
+  `--i-know-this-drops-a-live-shard` is passed; `refresh.sh` refuses to rebuild
+  into an already-loaded version and checks free disk before `addresses`.
+- **`GEO_VERSION`** (new `[vars]` key) versions only the KV geocode cache key so
+  an address refresh can invalidate cached lookups without re-uploading tiles;
+  falls back to `DATA_VERSION`. Geocoder tie-break: equal-rank rows prefer
+  `rooftop`, then lowest id.
+- **Upstream change detector.** `etl.check_upstream` + weekly
+  `.github/workflows/refresh.yml` compare NAD blobId, TIGER vintage/sizes,
+  OpenAddresses job ids and Geofabrik md5s against `state/upstream-snapshot.json`
+  and open an issue on change. The load step stays manual.
+- **Pipeline repairs.** `refresh.sh addresses` passes `--states` correctly;
+  NAD inner file auto-detected (`--inner auto`) and release metadata recorded;
+  `fetch_tiger --vintage TGRGDB24|25|26`; `fetch_oa --changed-only` (and the
+  public output URL, since the batch API dropped `s3`); `publish_manifest.sh`
+  reads the real KV namespace id and no longer swallows errors; segment loader
+  retries D1 error 7500. Cloudflare credentials can be pulled from Infisical via
+  `scripts/cf_env_infisical.sh`.
+
 - **Element-metered rate limits (hybrid).** The cost-bounding daily caps are now
   metered in **elements** (elements = origins × destinations) instead of raw
   requests, so they track actual serving cost. The per-second tier is unchanged
