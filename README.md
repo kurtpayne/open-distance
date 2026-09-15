@@ -135,8 +135,9 @@ format, plus two extra arrays surfacing geocode confidence:
   Produced Work notice + a pointer to `/attribution`) so that attribution
   travels with every response.
 - Response adds `origin_matches` / `destination_matches`, `copyrights`,
-  and `data_version` (`"YYYY-MM"` of the upstream data build, refreshed
-  quarterly). All additive — old clients ignore unknown fields.
+  `data_version` (`"YYYY-MM"` of the address-shard build, refreshed
+  quarterly) and `roads_version` (the OSM road-tile build the distances come
+  from). All additive — old clients ignore unknown fields.
 - `place_id:` inputs return `NOT_FOUND`.
 - Only supports `mode=driving` (any other mode is treated as driving).
 - Max 25 elements (origins × destinations) per request.

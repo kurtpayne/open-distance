@@ -6,6 +6,16 @@ import { snapK, getTile, SnapResult } from "./tiles";
 import { oneToMany, NodeRef, DestGroup } from "./router";
 import { formatDistance, formatDuration, Units } from "./format";
 import { haversineMeters } from "./geo";
+
+// Version of the address shards (what `data_version` reports). GEO_VERSION is
+// bumped after a D1 address refresh; DATA_VERSION stays tied to the R2 tiles
+// and is reported separately as `roads_version`.
+// Wall-clock budget for one tiled L0 one-to-many search before yielding to L1.
+const L0_DEADLINE_MS = 8000;
+
+function addressesVersion(env: { DATA_VERSION: string; GEO_VERSION?: string }): string {
+  return env.GEO_VERSION ?? env.DATA_VERSION;
+}
 import { STATE_CODES } from "./state_parser";
 import { readMaxElements, readContactEmail, contactCta } from "./config";
 import { splitMulti, countElements } from "./elements";
@@ -28,6 +38,9 @@ export interface Env {
   // Versions only the KV geocode cache key (bumped after a D1 address
   // refresh). Falls back to DATA_VERSION when unset.
   GEO_VERSION?: string;
+  // Haversine km above which a pair skips the tiled L0 A* and goes straight
+  // to the L1 highway overlay. Optional [vars] override; default 500.
+  L0_MAX_KM?: string;
   // L1 highway overlay router. Optional: present when the Worker is built
   // with the DurableObject migration applied. Used as the cross-country
   // fallback when the tiled L0 router doesn't reach a destination.
@@ -258,7 +271,8 @@ async function tryWasmMatrix(
     origin_matches: [oGeo.match],
     rows: [{ elements }],
     status: "OK",
-    data_version: env.DATA_VERSION,
+    data_version: addressesVersion(env),
+    roads_version: env.DATA_VERSION,
     copyrights:
       "Map data © OpenStreetMap contributors (ODbL 1.0). " +
       "Addresses: NAD (US DOT, public domain), OpenAddresses (per-source -- see /attribution/openaddresses.json), " +
@@ -373,7 +387,10 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     // the L0 router would burn the Worker's CPU budget on an unsolvable Dijkstra
     // before yielding to the L1 fallback.
     const oGeoEarly = oR[i].geocode as { lat?: number; lon?: number };
-    const L0_MAX_KM = 1000;
+    // Above this the dense-corridor L0 search (e.g. Boston->DC through NYC,
+    // Philadelphia, Baltimore) burns the Worker CPU budget before it can fall
+    // back; the L1 overlay answers those in well under a second.
+    const L0_MAX_KM = Math.max(50, parseInt(env.L0_MAX_KM ?? "500", 10) || 500);
     const needRouting: DestGroup[] = [];
     for (let j = 0; j < destinations.length; j++) {
       const t1 = destTop1[j];
@@ -390,7 +407,10 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
 
     let computed: Map<string, { timeS: number; lenM: number }> = new Map();
     if (needRouting.length > 0) {
-      computed = await oneToMany(env.GRAPH, env.DATA_VERSION, srcNode, needRouting);
+      // Bounded: if L0 has not settled every group within the wall-clock
+      // budget it returns what it has and the rest falls through to L1 below,
+      // instead of exceeding the 30 s CPU limit (Cloudflare error 1102).
+      computed = await oneToMany(env.GRAPH, env.DATA_VERSION, srcNode, needRouting, { deadlineMs: L0_DEADLINE_MS });
       // Cache by top-1 for each routed destination (even if route used a later candidate).
       const legsToCache = new Map<string, { timeS: number; lenM: number }>();
       const dstByKey = new Map<string, NodeRef>();
@@ -480,10 +500,11 @@ export async function handleDistanceMatrix(url: URL, env: Env): Promise<Response
     origin_matches: originMatches,
     rows,
     status: "OK",
-    // YYYY-MM of the upstream data build that the underlying tiles +
-    // address shards came from. Refreshed quarterly. See /coverage for
-    // the per-source license URLs and the per-source OA manifest.
-    data_version: env.DATA_VERSION,
+    // YYYY-MM of the address-shard build (NAD/OpenAddresses/OSM addr:*),
+    // refreshed quarterly; `roads_version` is the OSM road-tile build the
+    // distances come from. See /coverage for the per-source license URLs.
+    data_version: addressesVersion(env),
+    roads_version: env.DATA_VERSION,
     // ODbL §4.3 Produced Work notice. Travels with every response so that
     // downstream callers who just render the JSON also surface the
     // attribution required by OpenStreetMap. See /attribution for the
@@ -512,7 +533,9 @@ export async function handleCoverage(env: Env, req?: Request): Promise<Response>
     "cache-control": "public, max-age=86400, s-maxage=86400",
   };
   return new Response(JSON.stringify({
-    version: env.DATA_VERSION,
+    version: addressesVersion(env),
+    addresses_version: addressesVersion(env),
+    roads_version: env.DATA_VERSION,
     coverage: "continental US (lower 48 + DC)",
     states,
     sources: {

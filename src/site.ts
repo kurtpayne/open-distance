@@ -1280,7 +1280,7 @@ ${topBarOther("/docs")}
   <span class="key">"origin_matches"</span><span class="pun">:</span>        <span class="str">["rooftop", "rooftop"]</span><span class="pun">,</span>
   <span class="key">"destination_addresses"</span><span class="pun">:</span> <span class="str">["San Francisco, CA", "Oakland, CA"]</span><span class="pun">,</span>
   <span class="key">"destination_matches"</span><span class="pun">:</span>   <span class="str">["rooftop", "interpolated"]</span><span class="pun">,</span>
-  <span class="key">"data_version"</span><span class="pun">:</span>          <span class="str">"2026-06"</span><span class="pun">,</span>
+  <span class="key">"data_version"</span><span class="pun">:</span>          <span class="str">"2026-09"</span><span class="pun">,</span>
   <span class="key">"rows"</span><span class="pun">: [{</span> <span class="key">"elements"</span><span class="pun">: [{</span>
     <span class="key">"distance"</span><span class="pun">:</span> <span class="pun">{</span> <span class="key">"text"</span><span class="pun">:</span> <span class="str">"33.4 mi"</span><span class="pun">,</span> <span class="key">"value"</span><span class="pun">:</span> <span class="num">53752</span> <span class="pun">},</span>   <span class="cmt">// metres</span>
     <span class="key">"duration"</span><span class="pun">:</span> <span class="pun">{</span> <span class="key">"text"</span><span class="pun">:</span> <span class="str">"41 mins"</span><span class="pun">,</span> <span class="key">"value"</span><span class="pun">:</span> <span class="num">2460</span> <span class="pun">},</span>  <span class="cmt">// seconds</span>
