@@ -247,11 +247,12 @@ Preconditions (one-time on the machine):
 brew install osmium-tool
 npm install
 # Cloudflare auth: copy .env.example to .env and fill in the values,
-#                  or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID directly
+#                  export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID directly,
+#                  or `source scripts/cf_env_infisical.sh` (Infisical machine identity in ~/.env)
 # No API key required -- the public endpoint is rate-limited per IP.
 ```
 
-Then:
+Then, **for the first load only**:
 
 ```
 cp .env.example .env             # then edit .env with your CF token, account, hostname
@@ -264,17 +265,12 @@ The first `./refresh.sh all` is long — several hours of downloads (~50 GB
 of source data) plus several hours of build CPU.
 You can also restrict to a single state for development: `./refresh.sh all CA`.
 
-### Pre-filtering refreshes to avoid writes
-
-`refresh.sh load-d1` currently DROPs and reloads every shard, re-paying to write
-data that hasn't changed. Gate each state's reload on a **content hash of its
-source files** (NAD/OA/OSM/TIGER): store the hash after a successful load and
-skip `load-d1` for any state whose sources are byte-identical since. Most
-refreshes touch only a handful of states, so this is the single biggest
-recurring-cost saver. (Note: a one-shot FTS5 `rebuild` would be cheaper in
-writes than the per-row trigger, but exceeds D1's per-query CPU cap on large
-states — hence the incremental trigger; skipping unchanged states is the
-practical lever instead.)
+`refresh.sh load-d1` runs the **legacy loaders** (`etl.load_d1_parallel`,
+`etl.load_d1_segments`), which `DROP` and recreate each shard's schema. They
+are the cold-start path for a brand-new fork. Once a shard is recorded in
+`state/fingerprints.json` (written by the delta pipeline below) they refuse
+to touch it unless `--i-know-this-drops-a-live-shard` is passed; every later
+load is a row-level delta (next section).
 
 Individual stages (resumable, idempotent):
 
@@ -286,39 +282,85 @@ Individual stages (resumable, idempotent):
 | `tiles`     | Build per-tile CSR road-graph binaries from OSM |
 | `addresses` | NAD → `.nad.csv`, OA → `.oa.csv`, OSM → `.osm.csv`, merge → `.csv`, plus TIGER segments → `segments/<STATE>.csv` |
 | `upload-r2` | Push tile binaries to R2 (parallel xargs; failures auto-retried) |
-| `load-d1`   | Push merged address CSVs + TIGER segments to D1 shards (parallel HTTP, with 971/7429 backoff). Skips any state whose CSVs are unchanged since the last successful load (see below) |
+| `load-d1`   | **First load only.** DROP + bulk-load merged address CSVs + TIGER segments into the D1 shards (parallel HTTP, 971/7429/7500 backoff). Refuses any shard listed in `state/fingerprints.json` |
 | `publish`   | Write manifest JSON to KV under `manifest:active` |
 
 Per-stage state can be restricted: `./refresh.sh tiles CA NY TX` or
 `./refresh.sh load-d1 IL OH`.
 
-### `load-d1` per-state source-hash skip
+Stage guards: `tiles`, `addresses` and `all` refuse to rebuild a version
+(`data/v2/version.txt`) that `state/fingerprints.json` says is already loaded
+into D1 — bump the version first. `addresses` also checks free disk before
+slicing the ~8 GB NAD archive (`OD_MIN_FREE_GB`, default 60).
 
-D1 bills per row **written** ($1/M) and the address shard's per-row FTS5
-trigger amplifies each address insert ~5×, so a full reload of all 49 shards
-costs roughly **$1,000**. Most refreshes only change a handful of states, so
-`load-d1` skips the expensive `DROP`+reload for any state whose source CSV is
-byte-identical to its last successful load:
+### Quarterly refresh (delta load)
 
-- Before loading a state, each loader computes a SHA-256 of the exact artifact
-  it would load — the merged addresses CSV (`load_d1_parallel`) or the TIGER
-  segments CSV (`load_d1_segments`).
-- It compares against a manifest at `data/v2/out/<version>/load_hashes.json`
-  (`{ "<STATE>": { "addresses_sha256": "...", "segments_sha256": "..." } }`).
-- **Unchanged** (hash recorded *and* matching) → `SKIP <STATE> (unchanged)`,
-  no writes.
-- **Changed / new / no prior record** → `LOAD <STATE> (changed|new)` and the
-  shard is reloaded. A missing manifest entry always loads.
-- The new hash is recorded **only after a fully clean load** (no failed
-  batches), written incrementally so a mid-run failure preserves the states
-  that already completed.
+NAD changes nationally every release, so skipping whole unchanged states
+saves nothing for addresses, and a full reload writes ~510M D1 rows (~$460,
+see Costs). The refresh is therefore a **row-level delta** applied by
+`etl.sync_d1`, which never `DROP`s a live shard. The diff is computed against
+a local **mirror** of what D1 actually holds, not against last quarter's CSVs
+(the first load reassigned ids under AUTOINCREMENT). Long-form runbook —
+source decisions, credentials, resume/rollback, the metering probes:
+[docs/refresh-quarterly.md](docs/refresh-quarterly.md).
 
-Pass `--force` to reload every state regardless of the manifest:
+**Detect (automatic, weekly).** `.github/workflows/refresh.yml` runs
+`python3 -m etl.check_upstream` against `state/upstream-snapshot.json`
+(NAD Socrata `blobId`, TIGER vintage + per-state size, OA per-source job ids,
+Geofabrik md5s — no bulk downloads) and opens or comments on a
+"Quarterly refresh" issue when something changed. The load stays manual.
+
+**Load (manual, from the maintainer's Mac).** From the repo root with the
+venv active. D1 billing renews on the 1st; start national runs on the 2nd.
 
 ```bash
-./refresh.sh load-d1 --force          # reload all states
-./refresh.sh load-d1 --force IL OH    # force-reload specific states
+source scripts/cf_env_infisical.sh                   # CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID (forks: .env)
+echo 2026-09 > data/v2/version.txt                   # new version (stage guards refuse an already-loaded one)
+
+# 1. fetch only what changed (refresh.sh fetch does not pass these flags)
+python3 -m etl.fetch_nad                              # national ZIP; move the old archive aside first
+python3 -m etl.fetch_oa --changed-only                # only sources whose OA job/size changed
+python3 -m etl.fetch_tiger --vintage TGRGDB26         # only if reloading segments this quarter
+                                                      # OSM: frozen unless tiles are rebuilt
+
+# 2. build per-state CSVs (no tiles/overlay/upload-r2 unless OSM changed)
+./refresh.sh addresses
+
+# 3. mirror every shard once (rows read only, ~$0.26 nationally; resumable)
+python3 -m etl.export_d1_mirror                       # [--kind addresses|segments|both] [--states ..] [--fresh]
+python3 -m etl.seed_fingerprints --version 2026-06    # once: record what legacy-loaded shards hold
+
+# 4. plan: diff CSVs vs mirror, run the gates, forecast rows written
+python3 -m etl.sync_d1 --version 2026-09 --dry-run   # [--states DC WY] [--only addresses|segments|both]
+
+# 5. apply: smallest shard first, resumable per-state checkpoints
+python3 -m etl.sync_d1 --version 2026-09 --yes --max-rows 48000000
+
+# 6. after the last delete: bump GEO_VERSION in wrangler.toml(.template), commit, deploy via GitHub
 ```
+
+What `sync_d1` does per shard and table: takes a Time Travel bookmark
+(`wrangler d1 time-travel info`, 30-day rollback window), installs the FTS5
+delete/update triggers, `INSERT OR IGNORE`s the new rows with **explicit ids**
+(a per-quarter block of `2^40 × quarter_index`, all `< 2^53`), then `DELETE`s
+vanished ids by primary key, verifies the row count against
+`mirror − deletes + inserts`, and only then updates the mirror and
+`state/fingerprints.json`. Every statement is idempotent, so a lost response
+is re-sent and a crashed run resumes from `data/v2/state/checkpoints/`.
+
+Gates (not overridable by `--yes`):
+
+| Gate | Refuses when |
+|---|---|
+| key-correctness | fewer than 95% of the previous version's CSV keys are found in the mirror (the diff key is wrong; expected 1.0) |
+| churn | `(inserts + deletes) / mirror rows ≥ 50%` for a state — a rebuild is cheaper — unless `--allow-rebuild ST` |
+| budget | forecast total `> --max-rows`; during apply, actual rows written `> --max-rows` or `> 1.5×` forecast so far |
+| ids | the new id block does not exceed every id already in the shard |
+
+`--dry-run` prints the per-state plan (mirror rows, ins, del, churn, key
+ratio, sub-metre jitter share, forecast) and the estimated dollars above a
+fresh 50M allowance; nothing is written. `--only` defaults to `addresses` —
+pass `--only both` to include segments.
 
 ## Costs
 
@@ -326,29 +368,40 @@ Pass `--force` to reload every state regardless of the manifest:
 
 | Phase | Cost | Covers |
 |---|---|---|
-| **Setup** (one-time) | **~$500** | The full continental-US data load into D1 (write-heavy — this is the nasty part). |
-| **Maintenance** | **~$200/year** (~$50/quarter) | Refreshing only the states whose source data changed (NAD is quarterly; the per-state skip handles the rest). |
+| **Setup** (one-time) | **~$460–500** | The full continental-US data load into D1 (write-heavy — this is the nasty part). The June 2026 load cost about $500. |
+| **Maintenance** | **~$0 in D1 writes** for a typical quarter | A row-level delta at a few percent churn fits inside the 50M rows/month D1 includes; a TIGER segments reload (~68M rows) is the exception and is a separate billing-cycle decision. |
 | **Hosting** | **~$5/month** | Serving up to **~750k–1M queries/month**, inside Cloudflare's free tier. |
 
-So a fork is ~$500 up front, then **~$5/mo + ~$200/yr** to run the entire lower-48 for a long horizon. The hosted instance is capped at **25,000 elements/day (~750k/month)** via `GLOBAL_ELEMENTS_PER_DAY` — that ceiling is what keeps it inside the free tier. Because the cap is now metered in **elements** (one origin→destination route solve) rather than raw requests, it bounds the actual unit of serving work, so the ~$5/mo guarantee is exact regardless of matrix sizes. Raising it to ~1M elements/month stays ~$5/mo; past that it's roughly **+$5 per additional 1M elements/month** (lift the billing alert to match). The detail behind these numbers:
+So a fork is ~$500 up front, then **~$5/mo** to run the entire lower-48 for a long horizon. The hosted instance is capped at **25,000 elements/day (~750k/month)** via `GLOBAL_ELEMENTS_PER_DAY` — that ceiling is what keeps it inside the free tier. Because the cap is now metered in **elements** (one origin→destination route solve) rather than raw requests, it bounds the actual unit of serving work, so the ~$5/mo guarantee is exact regardless of matrix sizes. Raising it to ~1M elements/month stays ~$5/mo; past that it's roughly **+$5 per additional 1M elements/month** (lift the billing alert to match). The detail behind these numbers:
 
 **Serving is cheap; (re)loading data is not.** Day-to-day request serving runs
 **< $10/month** at low-to-moderate traffic — D1 reads (~25 B/mo) and KV reads
 (~1 M/day) sit inside Cloudflare's included tiers, R2/KV storage is a few dollars,
 and the per-IP rate limiter now runs on a Durable Object (~$0.15/M requests)
-instead of KV. The real cost is **D1 row _writes_** during a data load:
+instead of KV. The real cost is **D1 row _writes_** during a data load.
+Measured on a scratch D1 database (2026-09-14, `etl.d1_probes`):
+
+| Operation | Rows billed |
+|---|---|
+| Insert one address | **2** (1 table row + 1 FTS5 virtual-table update; FTS5 shadow-table rows are not metered) |
+| Delete one address through the FTS delete trigger | 2 |
+| Insert one segment | 2 (table + index) |
+| Replay an identical `INSERT OR IGNORE` with explicit ids | 0 |
+| `DROP TABLE` | 0 |
+| Read | rows read, ~$0.001/M (25 B/mo included) |
 
 | Action | Approx. cost | Why |
 |---|---|---|
-| **Full continental-US load** (`refresh.sh all`) | **~$500–$1,000+ (one-time)** | ~222 M addresses + ~34 M segments, but D1 bills ~1.38 B **rows written** — the `addr_fts` FTS5 index (built per-row via the AFTER-INSERT trigger) is ~80% of it. D1 writes are **$1 / million** (50 M/mo free). |
-| Reload one large state (e.g. TX) | ~$30–$150 | Same FTS5 write amplification, proportional to that state's address count. |
+| **Full continental-US load** (`refresh.sh all`) | **~$460 (one-time)** | ~221 M addresses × 2 + ~34 M segments × 2 ≈ 510 M rows written at **$1 / million** after the 50 M/mo included. |
+| **Quarterly delta** (`etl.sync_d1`) | **~$0** at a few percent churn | `(inserts + deletes) × 2` rows; forecast by `--dry-run`, hard-capped by `--max-rows`. |
+| Mirror export (`etl.export_d1_mirror`) | ~$0.26 | ~255 M rows read, nothing written. |
+| TIGER segments reload (all states) | ~68 M rows | Exceeds one month's included rows on its own — schedule it in its own billing cycle. |
 | Serving | **< $10 / month** | Reads are within free tiers; rate limiting is on a Durable Object, not KV. |
 
 **Implications:**
-- A _full_ refresh is a several-hundred-dollar event. **Do not refresh on a
-  blind cron.** Upstream sources (NAD quarterly, OA/OSM irregular) rarely all
-  change at once — the per-state source-hash skip above reloads only changed
-  states, turning a ~$1,000 reload into a small partial one.
+- A _full_ reload is a several-hundred-dollar event. **Do not refresh on a
+  blind cron.** The weekly detector only opens an issue; the delta loader
+  forecasts before it writes and refuses past `--max-rows`.
 - Set a **Cloudflare billing alert** — the only hard backstop against a surprise
   overage from a reload or traffic spike.
 - Per-IP rate limits (`src/ratelimit.ts`, hybrid: 5 requests/sec burst +
@@ -401,6 +454,9 @@ along the matching segment by house-number range. Returned as `interpolated`.
   `leg2:` (src node → top-1 dest node → time+meters).
 - Geocode cache prefix `geo4:` in KV — bumped historically when normalizer
   semantics changed. NOT_FOUND results are intentionally not cached.
+  The key is `geo4:<GEO_VERSION>:<sha1>`; `GEO_VERSION` (wrangler `[vars]`,
+  falls back to `DATA_VERSION`) is bumped after a D1 address refresh so the
+  geocode cache can be invalidated without touching R2 tile paths.
 
 ## Layout
 
@@ -435,8 +491,16 @@ etl/
   build_tiger_segments.py   TIGER GDB → per-state segments.csv
   build_overlay.py          OSM → L1 highway overlay binary
   upload_tiles_parallel.sh  parallel R2 upload with fail-log + retry
-  load_d1_parallel.py       parallel D1 HTTP API loader (addresses)
-  load_d1_segments.py       parallel D1 loader (segments)
+  load_d1_parallel.py       legacy DROP+reload D1 loader (addresses) -- first load only
+  load_d1_segments.py       legacy DROP+reload D1 loader (segments) -- first load only
+  legacy_guard.py           refuses the legacy loaders on shards listed in state/fingerprints.json
+  export_d1_mirror.py       read every D1 shard back into data/v2/state/mirror (keys + ids)
+  seed_fingerprints.py      seed state/fingerprints.json from the mirror (once, after the first load)
+  sync_d1.py                quarterly row-level delta loader (plan/gates/apply/verify)
+  rowkey.py                 shared row filters + 64-bit content keys for the diff
+  d1_http.py                D1 REST client (rate limit, retries, rows-written ledger)
+  d1_probes.py              metering probes against a scratch D1 db -> state/calibration.json
+  check_upstream.py         weekly no-download upstream change detector
   publish_manifest.sh       write manifest + OA attribution to KV
 
 scripts/
@@ -446,10 +510,13 @@ scripts/
   acceptance_us.sh          continental-US acceptance probe set
   build_wasm_router.sh      cargo build for the Rust crate
   benchmark_panel.py        multi-provider 44-route accuracy + latency benchmark
+  cf_env_infisical.sh       source it: Cloudflare token + account id from Infisical into the shell
 
 refresh.sh                  master ETL pipeline (setup → fetch → build → upload → load → publish)
 wrangler.toml               Worker config + 49 per-state D1 bindings
 wrangler.toml.template      fork-friendly template (substitute via materialize_wrangler.sh)
+state/                      committed refresh state: upstream-snapshot.json, calibration.json, fingerprints.json
+.github/workflows/refresh.yml  weekly upstream change detector (opens an issue; never loads)
 ```
 
 The `data/` directory is gitignored and populated on demand by `refresh.sh`.

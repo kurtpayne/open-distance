@@ -1,0 +1,1177 @@
+{
+  "AL": {
+    "addresses": {
+      "db_id": "872db8b9-1d4c-4b18-b6a5-fcae54316f5d",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:50:40Z",
+      "rows": 4057595,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "872db8b9-1d4c-4b18-b6a5-fcae54316f5d",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:51:31Z",
+      "rows": 732279,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "AR": {
+    "addresses": {
+      "db_id": "2eddcaed-6487-4f15-b2ee-f1a15624a49e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:52:56Z",
+      "rows": 3510179,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "2eddcaed-6487-4f15-b2ee-f1a15624a49e",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:53:35Z",
+      "rows": 551284,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "AZ": {
+    "addresses": {
+      "db_id": "ff0ea135-5816-4ee0-b7c2-b8b52f18548c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:54:27Z",
+      "rows": 4976256,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "ff0ea135-5816-4ee0-b7c2-b8b52f18548c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:29:09Z",
+      "rows": 694938,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "CA": {
+    "addresses": {
+      "db_id": "f0766ad2-f5b1-47e5-8f9e-ef2232060117",
+      "duplicate_rows": 1250,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:44:43Z",
+      "rows": 15584513,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "f0766ad2-f5b1-47e5-8f9e-ef2232060117",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:48:29Z",
+      "rows": 2455006,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "CO": {
+    "addresses": {
+      "db_id": "29ddea59-615c-490c-a958-d5754c2fe385",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:28:20Z",
+      "rows": 5629632,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "29ddea59-615c-490c-a958-d5754c2fe385",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:29:06Z",
+      "rows": 632167,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "CT": {
+    "addresses": {
+      "db_id": "a0bfefbb-9e2b-4219-990b-27e4e881c90f",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:30:41Z",
+      "rows": 2083677,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:28:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "a0bfefbb-9e2b-4219-990b-27e4e881c90f",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:31:05Z",
+      "rows": 266440,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:28:28Z",
+      "version": "2026-06"
+    }
+  },
+  "DC": {
+    "addresses": {
+      "bookmark_before": "00000052-00000000-000050e6-71b02a69561fb557984fdada8a3d5d10",
+      "db_id": "d3ab742b-5216-4f5b-a925-605fb0841d0c",
+      "id_block_base": 3298534883328,
+      "loaded_at": "2026-09-14T22:31:16Z",
+      "rollback_deadline": "2026-10-14T22:31:12Z",
+      "rows": 303413,
+      "rows_written_actual": 1003,
+      "version": "2026-09"
+    },
+    "segments": {
+      "db_id": "d3ab742b-5216-4f5b-a925-605fb0841d0c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:50:01Z",
+      "rows": 22877,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:28:28Z",
+      "version": "2026-06"
+    }
+  },
+  "DE": {
+    "addresses": {
+      "db_id": "bfd80070-c81f-4fea-bd47-6a2553331e1d",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:51:39Z",
+      "rows": 1063472,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "bfd80070-c81f-4fea-bd47-6a2553331e1d",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T21:51:48Z",
+      "rows": 89508,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "FL": {
+    "addresses": {
+      "db_id": "850559ec-9528-49f5-aefb-fa402e3392cb",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:55Z",
+      "rows": 20653493,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "850559ec-9528-49f5-aefb-fa402e3392cb",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:52:51Z",
+      "rows": 1756448,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "GA": {
+    "addresses": {
+      "db_id": "858f1515-4c14-4eee-aa90-7f297fe11717",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:31:32Z",
+      "rows": 4176831,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "858f1515-4c14-4eee-aa90-7f297fe11717",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:33:14Z",
+      "rows": 1042806,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "IA": {
+    "addresses": {
+      "db_id": "ed4e2880-9327-45d9-a8f8-6fd4db31e1ab",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:29:45Z",
+      "rows": 2508719,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "ed4e2880-9327-45d9-a8f8-6fd4db31e1ab",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:30:29Z",
+      "rows": 686894,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "ID": {
+    "addresses": {
+      "db_id": "2c1e252b-6003-40a7-ae17-e6da87c20a57",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:30:09Z",
+      "rows": 1123869,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "2c1e252b-6003-40a7-ae17-e6da87c20a57",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:30:29Z",
+      "rows": 266000,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "IL": {
+    "addresses": {
+      "db_id": "18d7ae72-6b19-49cb-b816-1af844b404eb",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:35:45Z",
+      "rows": 7508729,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "18d7ae72-6b19-49cb-b816-1af844b404eb",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:39:57Z",
+      "rows": 1322194,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "IN": {
+    "addresses": {
+      "db_id": "c8b4cd4e-a4a0-4f6f-ab5d-c87d38e690cd",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:40:35Z",
+      "rows": 5962851,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "c8b4cd4e-a4a0-4f6f-ab5d-c87d38e690cd",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:41:43Z",
+      "rows": 983894,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "KS": {
+    "addresses": {
+      "db_id": "3a5c4d66-5841-4189-becd-28ef8b7e6f2a",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:32:12Z",
+      "rows": 1918567,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "3a5c4d66-5841-4189-becd-28ef8b7e6f2a",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:32:52Z",
+      "rows": 576525,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "KY": {
+    "addresses": {
+      "db_id": "2f0526f7-1066-4c5a-a4cb-0115c41fec4f",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:42:32Z",
+      "rows": 4061073,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "2f0526f7-1066-4c5a-a4cb-0115c41fec4f",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:43:25Z",
+      "rows": 553358,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "LA": {
+    "addresses": {
+      "db_id": "a6b1c993-2eda-49ea-8653-2aa84018acbb",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:34:51Z",
+      "rows": 1862090,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "a6b1c993-2eda-49ea-8653-2aa84018acbb",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:35:28Z",
+      "rows": 545880,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MA": {
+    "addresses": {
+      "db_id": "4a093d6d-0ec2-45c1-935f-668e29c9a67f",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:42:22Z",
+      "rows": 2940920,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "4a093d6d-0ec2-45c1-935f-668e29c9a67f",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:43:00Z",
+      "rows": 552589,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MD": {
+    "addresses": {
+      "db_id": "e9cd31b1-4fb9-4884-8804-8d7cb78602b9",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:44:14Z",
+      "rows": 4237033,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "e9cd31b1-4fb9-4884-8804-8d7cb78602b9",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:44:59Z",
+      "rows": 465567,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "ME": {
+    "addresses": {
+      "db_id": "00cf2464-3107-4d6e-a0b0-be11f6019519",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:42:37Z",
+      "rows": 945081,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "00cf2464-3107-4d6e-a0b0-be11f6019519",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:42:49Z",
+      "rows": 210663,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MI": {
+    "addresses": {
+      "db_id": "a52b8a91-8ed8-4085-819d-fcd643e61102",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:47:44Z",
+      "rows": 5842218,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "a52b8a91-8ed8-4085-819d-fcd643e61102",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:19Z",
+      "rows": 1154877,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MN": {
+    "addresses": {
+      "db_id": "ce7ea0bb-3baa-4225-bf99-e9d41519c234",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:46:16Z",
+      "rows": 3151251,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "ce7ea0bb-3baa-4225-bf99-e9d41519c234",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:47:17Z",
+      "rows": 896574,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MO": {
+    "addresses": {
+      "db_id": "3d0c8fed-958d-4b7f-a2a7-44600b16f01a",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:14Z",
+      "rows": 4720315,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "3d0c8fed-958d-4b7f-a2a7-44600b16f01a",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:50:59Z",
+      "rows": 973465,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MS": {
+    "addresses": {
+      "db_id": "a2ff04c7-b258-4a58-8e4b-ff979e8bac4b",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:46:39Z",
+      "rows": 1865724,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "a2ff04c7-b258-4a58-8e4b-ff979e8bac4b",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:47:12Z",
+      "rows": 488878,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "MT": {
+    "addresses": {
+      "db_id": "72686109-30c5-448a-87d9-758499ed287e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:48:49Z",
+      "rows": 1564823,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "72686109-30c5-448a-87d9-758499ed287e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:18Z",
+      "rows": 216656,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "NC": {
+    "addresses": {
+      "db_id": "36afc75b-7145-4a20-bb3c-d8cd693e6d36",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:04:36Z",
+      "rows": 12540262,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "36afc75b-7145-4a20-bb3c-d8cd693e6d36",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:07:05Z",
+      "rows": 1347149,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "ND": {
+    "addresses": {
+      "db_id": "3559dbbc-c64e-42af-b573-bb3e30d2bd9e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:24Z",
+      "rows": 644307,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "3559dbbc-c64e-42af-b573-bb3e30d2bd9e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:46Z",
+      "rows": 268215,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "NE": {
+    "addresses": {
+      "db_id": "402c9e64-a95b-4f7d-b5a3-c6456791659b",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:51:18Z",
+      "rows": 1508883,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "402c9e64-a95b-4f7d-b5a3-c6456791659b",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:51:55Z",
+      "rows": 415374,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "NH": {
+    "addresses": {
+      "db_id": "8c31d4ba-156a-4f8f-a0c4-73f31318b5fc",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:49:49Z",
+      "rows": 511617,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "8c31d4ba-156a-4f8f-a0c4-73f31318b5fc",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:50:25Z",
+      "rows": 157105,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "NJ": {
+    "addresses": {
+      "db_id": "d2d2077c-a1e5-4d8b-9411-c5c6d70801e3",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:00:42Z",
+      "rows": 6862307,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "d2d2077c-a1e5-4d8b-9411-c5c6d70801e3",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:01:57Z",
+      "rows": 587004,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "NM": {
+    "addresses": {
+      "db_id": "d96eeca0-36e3-4964-9fc4-8dace011585e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:53:44Z",
+      "rows": 2897702,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "d96eeca0-36e3-4964-9fc4-8dace011585e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:54:19Z",
+      "rows": 264480,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "NV": {
+    "addresses": {
+      "db_id": "fedcf70a-0539-4f72-975e-a60d4eafef76",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:53:02Z",
+      "rows": 1249045,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "fedcf70a-0539-4f72-975e-a60d4eafef76",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:53:32Z",
+      "rows": 233380,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T22:56:28Z",
+      "version": "2026-06"
+    }
+  },
+  "NY": {
+    "addresses": {
+      "db_id": "ebe04860-fcbc-4b99-acc1-4b8e37c538db",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:06:22Z",
+      "rows": 10110665,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "ebe04860-fcbc-4b99-acc1-4b8e37c538db",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:08:23Z",
+      "rows": 1109107,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "OH": {
+    "addresses": {
+      "db_id": "1900f302-f797-4a55-af0c-656b9e6c9d46",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:08:10Z",
+      "rows": 10360818,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "1900f302-f797-4a55-af0c-656b9e6c9d46",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:10:26Z",
+      "rows": 1282504,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "OK": {
+    "addresses": {
+      "db_id": "47343557-9795-4da2-a01d-3e50f5e24146",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:57:04Z",
+      "rows": 2293700,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "47343557-9795-4da2-a01d-3e50f5e24146",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T22:58:36Z",
+      "rows": 607799,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "OR": {
+    "addresses": {
+      "db_id": "f5a426ee-f128-4210-af88-c4713cb1145e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:00:15Z",
+      "rows": 3513245,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "f5a426ee-f128-4210-af88-c4713cb1145e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:01:12Z",
+      "rows": 490917,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "PA": {
+    "addresses": {
+      "db_id": "86f0d8db-f7a7-4abf-bf1c-e329a111fd34",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:06:58Z",
+      "rows": 6313714,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "86f0d8db-f7a7-4abf-bf1c-e329a111fd34",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:09:09Z",
+      "rows": 1346599,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "RI": {
+    "addresses": {
+      "db_id": "3a445ace-2e17-4b5e-9ab3-c7cd952b3fac",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:02:40Z",
+      "rows": 817591,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "3a445ace-2e17-4b5e-9ab3-c7cd952b3fac",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:02:50Z",
+      "rows": 99801,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "SC": {
+    "addresses": {
+      "db_id": "88d98966-c0d8-48a3-b098-6135123f443d",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:07:26Z",
+      "rows": 4099779,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "88d98966-c0d8-48a3-b098-6135123f443d",
+      "duplicate_rows": 1,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:08:42Z",
+      "rows": 663064,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "SD": {
+    "addresses": {
+      "db_id": "d510fdac-703b-4744-a6c9-bdb14f1ed3e8",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:03:23Z",
+      "rows": 449511,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "d510fdac-703b-4744-a6c9-bdb14f1ed3e8",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:03:40Z",
+      "rows": 192262,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "TN": {
+    "addresses": {
+      "db_id": "f94bd6f1-9ea0-43ec-8435-33a59b9eeca2",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:12:10Z",
+      "rows": 6986933,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "f94bd6f1-9ea0-43ec-8435-33a59b9eeca2",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:13:12Z",
+      "rows": 846581,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "TX": {
+    "addresses": {
+      "db_id": "b474726c-2b02-4b52-9a9e-1f728ccf8d6e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:39:40Z",
+      "rows": 31635096,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "b474726c-2b02-4b52-9a9e-1f728ccf8d6e",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:43:25Z",
+      "rows": 2488545,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "UT": {
+    "addresses": {
+      "db_id": "b3409ea6-3ad3-4429-92e4-a878ca9bfcb2",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:11:06Z",
+      "rows": 1830750,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "b3409ea6-3ad3-4429-92e4-a878ca9bfcb2",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:11:33Z",
+      "rows": 286619,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "VA": {
+    "addresses": {
+      "db_id": "8c625ef7-524d-4f2d-99d1-fddb8d2fddd0",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:17:18Z",
+      "rows": 8307935,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "8c625ef7-524d-4f2d-99d1-fddb8d2fddd0",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:18:42Z",
+      "rows": 1017684,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "VT": {
+    "addresses": {
+      "db_id": "c6ace339-d348-4c73-b771-9e881122ac7c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:10:20Z",
+      "rows": 896089,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "c6ace339-d348-4c73-b771-9e881122ac7c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:10:31Z",
+      "rows": 137377,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "WA": {
+    "addresses": {
+      "db_id": "9cb85cf5-5a85-40f0-9df2-eb3a480d59a8",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:16:58Z",
+      "rows": 6289183,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "9cb85cf5-5a85-40f0-9df2-eb3a480d59a8",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:18:13Z",
+      "rows": 792549,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "WI": {
+    "addresses": {
+      "db_id": "1dd3a893-5ca3-492b-af5a-95fb849318e0",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:16:43Z",
+      "rows": 6013672,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "1dd3a893-5ca3-492b-af5a-95fb849318e0",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:17:47Z",
+      "rows": 616418,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "WV": {
+    "addresses": {
+      "db_id": "4e2c3614-214d-4f18-b929-3aaeb6386b4c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:13:35Z",
+      "rows": 2127701,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "4e2c3614-214d-4f18-b929-3aaeb6386b4c",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:13:56Z",
+      "rows": 267962,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  },
+  "WY": {
+    "addresses": {
+      "db_id": "fc52aff8-bb3b-4472-b93f-a88982926416",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:13:51Z",
+      "rows": 650065,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    },
+    "segments": {
+      "db_id": "fc52aff8-bb3b-4472-b93f-a88982926416",
+      "duplicate_rows": 0,
+      "id_block_base": 0,
+      "loaded_at": null,
+      "mirror_exported_at": "2026-09-14T23:14:00Z",
+      "rows": 113655,
+      "rows_written_actual": null,
+      "seeded_from_mirror_at": "2026-09-14T23:43:41Z",
+      "version": "2026-06"
+    }
+  }
+}

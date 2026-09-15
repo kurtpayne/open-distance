@@ -29,6 +29,7 @@ from pathlib import Path
 import aiohttp
 
 from etl.config import DATA
+from etl.legacy_guard import OVERRIDE_FLAG, check_live_shard
 from etl.load_hashes import LoadHashManifest, file_sha256
 from etl.states import BY_CODE
 
@@ -90,7 +91,7 @@ async def d1_query(session: aiohttp.ClientSession, account_id: str, db_id: str, 
             if data.get("success"):
                 return data
             err_str = str(data.get("errors") or data)
-            if any(c in err_str for c in ("971", "7429", "rate")):
+            if any(c in err_str for c in ("971", "7429", "7500", "rate", "internal error")):
                 if attempt + 1 < max_retries:
                     await asyncio.sleep(backoff); backoff *= 1.7; continue
             raise RuntimeError(f"d1 error: {data}")
@@ -188,6 +189,12 @@ async def main(argv: list[str]) -> int:
         help="Reload every state even if its segments CSV is unchanged "
              "(bypasses the per-state source-hash skip).",
     )
+    ap.add_argument(
+        OVERRIDE_FLAG,
+        dest="drop_live_shard",
+        action="store_true",
+        help="Allow the DROP+reload on a shard listed as live in state/fingerprints.json.",
+    )
     ap.add_argument("states", nargs="*")
     args = ap.parse_args(argv)
     token = os.environ.get("CLOUDFLARE_API_TOKEN")
@@ -207,6 +214,10 @@ async def main(argv: list[str]) -> int:
         csvp = segments_csv(args.version, s)
         if not csvp.exists():
             log(f"WARN: no segments CSV for {s}, skip"); continue
+        try:
+            check_live_shard(db_id, s, args.drop_live_shard)
+        except RuntimeError as e:
+            log(f"REFUSING: {e}"); return 1
         queue.append((s, db_id, csvp))
 
     manifest = LoadHashManifest(args.version)

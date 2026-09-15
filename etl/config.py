@@ -84,7 +84,9 @@ DEFAULT_SPEED_KMH = 40
 # ---------------------------------------------------------------------------
 # Repo root is one level above this file (etl/config.py -> repo root).
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data" / "v2"
+import os as _os
+# OD_DATA_DIR overrides the data root (used by the offline test harness).
+DATA = Path(_os.environ["OD_DATA_DIR"]) if _os.environ.get("OD_DATA_DIR") else ROOT / "data" / "v2"
 
 
 def state_dir(state_code: str) -> Path:

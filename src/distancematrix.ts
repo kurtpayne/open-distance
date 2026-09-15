@@ -25,6 +25,9 @@ export interface Env {
   GRAPH: R2Bucket;
   CACHE: KVNamespace;
   DATA_VERSION: string;
+  // Versions only the KV geocode cache key (bumped after a D1 address
+  // refresh). Falls back to DATA_VERSION when unset.
+  GEO_VERSION?: string;
   // L1 highway overlay router. Optional: present when the Worker is built
   // with the DurableObject migration applied. Used as the cross-country
   // fallback when the tiled L0 router doesn't reach a destination.

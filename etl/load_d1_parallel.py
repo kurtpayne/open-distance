@@ -28,6 +28,7 @@ from pathlib import Path
 import aiohttp
 
 from etl.config import DATA, addresses_csv
+from etl.legacy_guard import OVERRIDE_FLAG, check_live_shard
 from etl.load_hashes import LoadHashManifest, file_sha256
 from etl.states import BY_CODE
 
@@ -92,8 +93,9 @@ async def d1_query(session: aiohttp.ClientSession, account_id: str, db_id: str, 
                 return data
             err = data.get("errors") or data.get("messages") or []
             err_str = str(err)
-            # Retry on 971 (rate limit) and 7429 (CPU exceeded) with backoff.
-            if any(code in err_str for code in ("971", "7429", "rate")):
+            # Retry on 971 (rate limit), 7429 (CPU exceeded) and 7500 /
+            # "internal error" (transient D1 backend failures) with backoff.
+            if any(code in err_str for code in ("971", "7429", "7500", "rate", "internal error")):
                 if attempt + 1 < max_retries:
                     await asyncio.sleep(backoff)
                     backoff *= 1.7
@@ -205,6 +207,12 @@ async def main(argv: list[str]) -> int:
         help="Reload every state even if its addresses CSV is unchanged "
              "(bypasses the per-state source-hash skip).",
     )
+    ap.add_argument(
+        OVERRIDE_FLAG,
+        dest="drop_live_shard",
+        action="store_true",
+        help="Allow the DROP+reload on a shard listed as live in state/fingerprints.json.",
+    )
     ap.add_argument("states", nargs="*")
     args = ap.parse_args(argv)
 
@@ -230,6 +238,11 @@ async def main(argv: list[str]) -> int:
         if not csv_path.exists():
             log(f"WARN: missing CSV for {s} (skip)")
             continue
+        try:
+            check_live_shard(db_id, s, args.drop_live_shard)
+        except RuntimeError as e:
+            log(f"REFUSING: {e}")
+            return 1
         states_to_load.append((s, db_id, csv_path))
 
     if not states_to_load:
