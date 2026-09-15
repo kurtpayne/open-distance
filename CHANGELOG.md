@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **`refresh.sh quarterly` — the one-command refresh.** Run once per quarter
+  on the 2nd of March, June, September and December (the day after Cloudflare
+  billing renews); roads, TIGER segments and addresses share that single run.
+  Without `--yes` it detects upstream changes, fetches only what moved (NAD,
+  changed OpenAddresses sources, a new TIGER vintage, fresh OSM extracts),
+  builds the version and prints the `etl.sync_d1` dry-run plan; with `--yes`
+  it uploads tiles + overlay to R2, applies the D1 delta (`--only both`, cap
+  `--max-rows`, default 48M), bumps `GEO_VERSION` (and `DATA_VERSION` when
+  roads were rebuilt), publishes the KV manifest, updates the upstream
+  snapshot and commits + pushes. Flags: `--version`, `--skip-roads`,
+  `--plan-only`, `-- <sync_d1 args>` (e.g. `--allow-rebuild ST`,
+  `--allow-shrink ST`). `sync_d1` falls back to cached CSV keys when a
+  previous version's CSV has been deleted.
 - **Centroid-only queries now return `NOT_FOUND`.** A query without a house
   number (`Austin, TX`, `78701`, `Main St, Austin, TX`) used to full-text match
   whichever address shared its tokens and come back as a confident `rooftop`

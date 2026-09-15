@@ -130,8 +130,11 @@ def csv_keys(version: str, state: str, kind: str) -> np.ndarray:
     """Unique sorted uint64 keys of a CSV (cached as .npy)."""
     p = CSVKEY_DIR / version / f"{state}.{kind}.npy"
     src = TABLE[kind]["csv"](version, state)
-    if p.exists() and p.stat().st_mtime >= src.stat().st_mtime:
+    if p.exists() and (not src.exists() or p.stat().st_mtime >= src.stat().st_mtime):
+        # cached keys stand in for a CSV that has since been deleted (disk policy)
         return np.load(p)
+    if not src.exists():
+        raise FileNotFoundError(f"{src} (and no cached keys at {p})")
     import array
     a = array.array("Q")
     for k, _ in iter_csv_rows(src, kind):
@@ -207,7 +210,7 @@ def plan_state(version: str, prev_version: str, state: str, kind: str, cal: dict
     # key-correctness gate vs the previous version's CSV
     key_ratio = None
     prev_csv = TABLE[kind]["csv"](prev_version, state)
-    if prev_csv.exists():
+    if prev_csv.exists() or (CSVKEY_DIR / prev_version / f"{state}.{kind}.npy").exists():
         J = csv_keys(prev_version, state, kind)
         key_ratio = float(np.isin(J, A_unique, assume_unique=True).mean()) if J.size else 1.0
 

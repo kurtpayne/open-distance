@@ -1,8 +1,44 @@
 # Quarterly refresh runbook (delta load)
 
 Long-form companion to the "Quarterly refresh (delta load)" section of the
-README. Everything here is manual and runs from the maintainer's Mac; the
-GitHub workflow only detects changes.
+README. Everything runs from the maintainer's Mac; the GitHub workflow only
+detects changes.
+
+## TL;DR
+
+**One run per quarter, on the 2nd of March, June, September and December**
+(the day after Cloudflare billing renews on the 1st). Roads, TIGER segments
+and addresses are all covered by that one run; nothing else is scheduled.
+
+```bash
+source scripts/cf_env_infisical.sh   # or CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID in .env
+./refresh.sh quarterly               # dry-run: detect -> fetch what changed -> build -> D1 delta plan
+./refresh.sh quarterly --yes         # same, then R2 upload, D1 delta apply, publish, commit + push
+```
+
+Without `--yes` nothing is written to Cloudflare and nothing is committed.
+Flags (`refresh.sh quarterly [--yes] [--max-rows N] [--version YYYY-MM]
+[--skip-roads] [--plan-only] [-- <etl.sync_d1 args>]`):
+
+| Flag | Effect |
+|---|---|
+| `--yes` | upload tiles + overlay to R2, apply the D1 delta (`etl.sync_d1 --only both`), bump `GEO_VERSION` (and `DATA_VERSION` when roads were rebuilt), write the KV manifest, update `state/upstream-snapshot.json`, commit `wrangler.toml(.template)` + `state/`, push so GitHub deploys |
+| `--max-rows N` | cap on D1 rows written this run (default 48,000,000) |
+| `--version YYYY-MM` | version to build (default: current month; refuses one `state/fingerprints.json` already lists) |
+| `--skip-roads` | keep the previous tiles + overlay, `DATA_VERSION` unchanged; the address build still needs last quarter's OSM extracts on disk |
+| `--plan-only` | detect + print what would happen; no downloads, no credentials |
+| `-- ARGS` | passed to `etl.sync_d1`: `-- --allow-rebuild ST` for churn ≥ 50%, `-- --allow-shrink ST` for a real >10% net row loss |
+
+Prerequisites, once per machine: credentials (section 1) and the D1 mirror +
+fingerprints from the first delta run (section 4; already done for the hosted
+instance). Disk: keep `data/v2/state/` (mirror, cached CSV keys, plans) and
+the previous version's merged CSVs until the next run completes; raw sources
+(NAD zip, OSM extracts, TIGER gdbs, local tiles) are re-downloadable and the
+command re-fetches what it needs. The loader falls back to the cached keys in
+`data/v2/state/csvkeys/` if a previous CSV has been deleted.
+
+Sections 2-7 below are what `refresh.sh quarterly` does for you, step by
+step. Use them as the manual path when debugging or resuming a single step.
 
 ## 0. What is where
 
@@ -36,29 +72,33 @@ back to `wrangler.toml`). Nothing is written to disk. Forks without Infisical
 keep using `.env` (`refresh.sh` reads it; the Python modules read the
 environment).
 
-## 2. Decide what to refresh this quarter
+## 2. Detect (what `refresh.sh quarterly` does for you: `etl.check_upstream`)
 
 The weekly detector (`.github/workflows/refresh.yml`, Mondays 13:00 UTC)
 runs `python3 -m etl.check_upstream --snapshot state/upstream-snapshot.json`
 and exits 3 on change, opening or commenting on a "Quarterly refresh:
-upstream changed YYYY-MM" issue with the report attached. Signals, none of
-which download bulk data:
+upstream changed YYYY-MM" issue with the report attached. `refresh.sh
+quarterly` runs the same check first (`--plan-only` stops here) and uses the
+report to decide what to fetch and build. Signals, none of which download
+bulk data:
 
 | Source | Signal | Decision |
 |---|---|---|
 | NAD | Socrata view `fc2s-wawr` `blobId` (= ETag of the download), size, "Last Update" | Refresh every release: the change is national. |
 | OpenAddresses | `batch.openaddresses.io/api/data` per-source `job` + `size` | `fetch_oa --changed-only` re-downloads only changed/new/missing sources. The API job metadata no longer exposes an `s3` field; the public `v2.openaddresses.io/batch-prod/job/<id>/source.geojson.gz` path is used. |
-| TIGER | newest `TGRGDB<yy>` vintage whose edges gdb exists (probes 27/26/25) + per-state Content-Length | `fetch_tiger --vintage TGRGDB25\|26`. A national segments reload is ~68M rows written, so it is a separate billing-cycle decision, not part of the address delta. |
-| OSM | Geofabrik `<state>-latest.osm.pbf.md5` | Frozen unless the road tiles are rebuilt (tiles → `upload-r2` → `DATA_VERSION` bump). |
+| TIGER | newest `TGRGDB<yy>` vintage whose edges gdb exists (probes 27/26/25) + per-state Content-Length | Only when the vintage moved (yearly): `fetch_tiger --vintage TGRGDB<yy>` + `build_tiger_segments`, and the segments go into the same D1 delta (`--only both`, ~13-27M rows). Otherwise the previous version's segments are reused (symlink). |
+| OSM | Geofabrik `<state>-latest.osm.pbf.md5` | Informational: the command re-fetches every extract and rebuilds tiles + L1 overlay each quarter unless `--skip-roads` (then `DATA_VERSION` stays). Roads cost nothing in D1 (about 2 h build + 9 GB R2 upload). |
 
-After a refresh, update the snapshot so the detector stops firing:
-`python3 -m etl.check_upstream --update-snapshot` (or `--seed-local` to fill
-it from what the fetchers recorded on disk), then commit `state/`.
+After a refresh the snapshot must be updated so the detector stops firing;
+`refresh.sh quarterly --yes` does this last (`python3 -m etl.check_upstream
+--update-snapshot`, or `--seed-local` to fill it from what the fetchers
+recorded on disk) and commits `state/`.
 
-## 3. Fetch and build
+## 3. Fetch and build (what `refresh.sh quarterly` does for you)
 
 D1 billing renews on the 1st; start national runs on the 2nd so the whole
-run lands in one 50M-row allowance.
+run lands in one 50M-row allowance. The command writes the version itself
+(`--version`, default the current month); by hand:
 
 ```bash
 echo 2026-09 > data/v2/version.txt
@@ -70,8 +110,9 @@ with "already loaded into D1; bump data/v2/version.txt". `addresses` also
 runs a disk preflight (`OD_MIN_FREE_GB`, default 60 GB) before slicing NAD.
 
 ```bash
-# NAD: fetch_nad is idempotent on data/v2/nad/nad-txt.zip, so move the
-# previous archive aside first; refresh.sh addresses falls back to the newest
+# NAD: fetch_nad is idempotent on data/v2/nad/nad-txt.zip. The command deletes
+# the archive and re-fetches when the blobId changed; by hand, move the old
+# archive aside first. refresh.sh addresses falls back to the newest
 # nad-txt*.zip on disk (or $OD_NAD_ZIP). build_nad_addresses picks the single
 # TXT/*.txt entry automatically (the release renames it, e.g. NAD_r22).
 python3 -m etl.fetch_nad
@@ -79,19 +120,36 @@ python3 -m etl.fetch_nad
 # OA: only changed sources (compares against data/v2/oa/sources.json)
 python3 -m etl.fetch_oa --changed-only
 
-# TIGER: only when reloading segments (refresh.sh fetch/addresses use the
-# default TGRGDB24; pass --vintage to both the fetcher and the builder)
+# TIGER: only when the vintage moved (refresh.sh fetch/addresses use the
+# default TGRGDB24; pass --vintage to both the fetcher and the builder).
+# Otherwise symlink data/v2/out/<prev>/segments as data/v2/out/<new>/segments.
 python3 -m etl.fetch_tiger --vintage TGRGDB26
 python3 -m etl.build_tiger_segments --version 2026-09 --vintage TGRGDB26
 
-# per-state CSVs (NAD > OA > OSM merge + segments)
-./refresh.sh addresses
+# OSM: fresh extracts when roads are rebuilt (the command deletes the old
+# .osm.pbf files first). With --skip-roads the extracts already on disk are
+# reused -- the address build needs them for OSM addr:* nodes.
+# STATES = the 48 + DC codes (the command passes all of them; fetch_sources
+# and build_addresses require the list, the other builders default to all).
+python3 -m etl.fetch_sources $STATES
+
+# per-state address CSVs, in the order the command runs them
+python3 -m etl.build_nad_addresses --version 2026-09 --zip data/v2/nad/nad-txt.zip
+python3 -m etl.build_oa_addresses --version 2026-09
+python3 -m etl.build_addresses --version 2026-09 $STATES
+python3 -m etl.merge_addresses --version 2026-09
+
+# roads (skipped by --skip-roads): tiles + L1 overlay, then upload under --yes
+python3 -m etl.build_tiles --version 2026-09
+python3 -m etl.build_overlay --version 2026-09
+bash etl/upload_tiles_parallel.sh 2026-09 16
+npx wrangler r2 object put od-graph/overlay/2026-09/l1.bin --file data/v2/out/2026-09/l1-overlay.bin --remote
 ```
 
 `refresh.sh fetch` does not pass `--changed-only` or `--vintage`; call the
-modules directly for a delta quarter.
+modules directly (or use `refresh.sh quarterly`) for a delta quarter.
 
-## 4. Mirror D1
+## 4. Mirror D1 (one-time; `refresh.sh quarterly` requires it)
 
 ```bash
 python3 -m etl.export_d1_mirror            # --kind addresses|segments|both (default both)
@@ -109,16 +167,19 @@ installed triggers and `size_after`.
 loader and have no fingerprint yet, the version they hold (default
 `2026-06`), `db_id` and row count. This is what arms the legacy guard and
 what `sync_d1` uses as the key-correctness reference version. It is a
-one-time step; `sync_d1` maintains the file afterwards.
+one-time step; `sync_d1` maintains the file afterwards. `refresh.sh
+quarterly` refuses to start until `state/fingerprints.json` names a loaded
+version; the hosted instance already has this.
 
-## 5. Plan
+## 5. Plan (what `refresh.sh quarterly` does for you: `sync_d1 --dry-run`)
 
 ```bash
 python3 -m etl.sync_d1 --version 2026-09 --dry-run
 python3 -m etl.sync_d1 --version 2026-09 --dry-run --states TX --only both
 ```
 
-Per state and table (`--only` defaults to `addresses`):
+The command runs `--only both` and appends anything after `--`. Per state
+and table (`--only` defaults to `addresses` when called by hand):
 
 1. Keys of the new CSV (`etl.rowkey`: same filters and canonicalisation as
    the legacy loaders, 64-bit blake2b of the canonical tuple) vs the mirror.
@@ -132,6 +193,8 @@ Per state and table (`--only` defaults to `addresses`):
    in the fingerprint, else `2026-06`).
 3. Churn `(INS + DEL) / mirror rows`. `>= 50%` refuses unless
    `--allow-rebuild ST`, because past that point a rebuild is cheaper.
+   Shrink: a net loss of more than 10% of the mirror rows refuses unless
+   `--allow-shrink ST` (almost always a truncated or corrupt input).
 4. Ids: inserts get explicit ids from block `2^40 × quarter_index`
    (quarter 1 = 2026-Q1); if the shard already holds ids in or above that
    block (a re-run in the same quarter) the next block is used. The block
@@ -147,7 +210,7 @@ cumulative total with the estimated dollars above a fresh 50M allowance.
 The plan file carries a `plan_sha`; a checkpoint from a different plan
 refuses to resume.
 
-## 6. Apply
+## 6. Apply (what `refresh.sh quarterly --yes` does for you)
 
 ```bash
 python3 -m etl.sync_d1 --version 2026-09 --yes --max-rows 48000000 [--states ...] [--only both]
@@ -155,9 +218,12 @@ python3 -m etl.sync_d1 --version 2026-09 --yes --max-rows 48000000 [--states ...
 
 Refuses up front if any gate failed or the forecast total exceeds
 `--max-rows` (default 48,000,000; run fewer states or raise it). Shards are
-processed smallest forecast first (TX last), `--state-parallelism 4`,
-`--rps 10`, `--stmts-per-request 4` (halved automatically on timeouts or
->10 s statements). Per shard:
+processed smallest forecast first (TX last); the module defaults are
+`--state-parallelism 4`, `--rps 10`, `--stmts-per-request 4` (halved
+automatically on timeouts or >10 s statements). The command runs
+`--only both --yes --reuse-plans --max-rows <N> --state-parallelism 6
+--stmts-per-request 8 --rps 20`, reusing the plans from its own dry-run when
+mirror and CSVs are unchanged. Per shard:
 
 1. `count_before` and a Time Travel bookmark via
    `npx wrangler d1 time-travel info <db> --json` (`--no-bookmark` to skip);
@@ -188,7 +254,7 @@ Rollback: `wrangler d1 time-travel restore <db> --bookmark <bookmark_before>`
 within 30 days, then `--fresh` re-export the mirror for that shard and remove
 its fingerprint entry (or re-seed).
 
-## 7. Publish
+## 7. Publish (what `refresh.sh quarterly --yes` does for you)
 
 - `GEO_VERSION` (wrangler `[vars]`) versions only the KV geocode cache key
   `geo4:<GEO_VERSION>:<sha1>`. Bump it in `wrangler.toml` and
@@ -196,9 +262,13 @@ its fingerprint entry (or re-seed).
   and deploy through GitHub. Bumping earlier would re-cache rows that are
   about to be deleted.
 - `DATA_VERSION` stays tied to the R2 tile paths and changes only when tiles
-  are rebuilt (OSM refresh). A tiles rebuild also needs `refresh.sh
-  upload-r2` and `refresh.sh publish` (manifest in KV).
-- Commit `state/` (`fingerprints.json`, updated `upstream-snapshot.json`).
+  are rebuilt — every quarter unless `--skip-roads`. A tiles rebuild also
+  needs the R2 upload (`etl/upload_tiles_parallel.sh` + the overlay `put`,
+  or `refresh.sh upload-r2`) and the KV manifest (`etl/publish_manifest.sh`,
+  or `refresh.sh publish`).
+- Update the snapshot (`etl.check_upstream --update-snapshot`) and commit
+  `wrangler.toml`, `wrangler.toml.template` and `state/` (`fingerprints.json`,
+  `upstream-snapshot.json`), then push; GitHub deploys the version bump.
 
 ## 8. Metering facts (measured 2026-09-14, scratch D1 database)
 
